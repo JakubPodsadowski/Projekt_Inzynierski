@@ -26,18 +26,22 @@ public class DataSeeder implements CommandLineRunner {
         if (departmentRepository.count() == 0) {
             log.info("Database is empty");
 
+            Random random = new Random();
+
             for (DepartmentName name : DepartmentName.values()) {
                 Department dept = new Department();
                 dept.setName(name);
                 dept.setTargetDailyItems(1000);
-                dept.setCurrentIPH(40.0);
-                dept.setRequiredIPH(50.0);
+
+                dept.setCurrentIPH(20.0 + (50.0 * random.nextDouble()));
+
+                dept.setRequiredIPH(40.0 + (20.0 * random.nextDouble()));
+
                 dept.setPerformanceMultiplier(1.0);
                 departmentRepository.save(dept);
             }
 
             var departments = departmentRepository.findAll();
-            Random random = new Random();
 
             for (int i = 1; i <= 10; i++) {
                 Employee emp = new Employee();
