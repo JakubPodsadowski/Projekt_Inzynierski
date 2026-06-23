@@ -21,6 +21,7 @@ public class RelocationEngine {
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
     private final Clock clock;
+    private final EfficiencyService efficiencyService;
 
     public void checkAndBalanceWorkforce() {
         log.info("Checking for balance workforce at: {}", LocalDateTime.now(clock));
@@ -59,13 +60,26 @@ public class RelocationEngine {
     }
 
     private void executeTransfer(Employee employee, Department giver, Department recipient) {
+        int skillAtGiver = employee.getSkillForDepartment(giver.getName());
+        int skillAtRecipient = employee.getSkillForDepartment(recipient.getName());
+
+        double contributionFromGiver = efficiencyService.getIphContribution(giver.getName(), skillAtGiver);
+        double contributionToRecipient = efficiencyService.getIphContribution(recipient.getName(), skillAtRecipient);
+
+        giver.setCurrentIPH(giver.getCurrentIPH() - contributionFromGiver);
+        recipient.setCurrentIPH(recipient.getCurrentIPH() + contributionToRecipient);
+
         employee.setCurrentDepartment(recipient);
         employee.setLastRelocatedAt(LocalDateTime.now(clock));
         employee.setRelocationCountToday(employee.getRelocationCountToday() + 1);
 
         employeeRepository.save(employee);
+        departmentRepository.save(giver);
+        departmentRepository.save(recipient);
 
-        log.info("Employee {} got relocated from {} to {}", employee.getId(), giver.getName(), recipient.getName());
+        log.info("Relocation: {} from {} ({} IPH) to {} ({} IPH)",
+                employee.getId(), giver.getName(), contributionFromGiver,
+                recipient.getName(), contributionToRecipient);
     }
 
     private double calculateDeficit(Department dept) {

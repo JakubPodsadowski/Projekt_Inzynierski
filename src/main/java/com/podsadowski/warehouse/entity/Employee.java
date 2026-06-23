@@ -6,6 +6,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @Entity
 @Table(name = "employees")
@@ -41,10 +43,20 @@ public class Employee {
     @Column(name = "is_on_break", nullable = false)
     private boolean isOnBreak = false;
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "employee_skills", joinColumns = @JoinColumn(name = "employee_id"))
+    @MapKeyColumn(name = "department_name")
+    @Column(name = "skill_level")
+    private Map<DepartmentName, Integer> skills = new HashMap<>();
+
     public boolean isEligibleForRelocation(LocalDateTime currentTime) {
         if (lastRelocatedAt == null) {
             return true;
         }
         return lastRelocatedAt.plusMinutes(60).isBefore(currentTime);
+    }
+
+    public int getSkillForDepartment(DepartmentName departmentName) {
+        return skills.getOrDefault(departmentName, 1);
     }
 }

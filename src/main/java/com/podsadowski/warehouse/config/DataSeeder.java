@@ -11,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Random;
 
 @Component
@@ -43,18 +45,26 @@ public class DataSeeder implements CommandLineRunner {
 
             var departments = departmentRepository.findAll();
 
-            for (int i = 1; i <= 10; i++) {
+            for (int i = 1; i <= 40; i++) {
                 Employee emp = new Employee();
                 emp.setFirstName("Pracownik");
                 emp.setLastName(String.valueOf(i));
+                emp.setOnBreak(false);
+
                 emp.setBreakTier(i % 2 == 0 ? BreakTier.FIRST_SHIFT : BreakTier.SECOND_SHIFT);
+
+                Map<DepartmentName, Integer> skills = new EnumMap<>(DepartmentName.class);
+                for (DepartmentName name : DepartmentName.values()) {
+                    skills.put(name, random.nextInt(3) + 1);
+                }
+                emp.setSkills(skills);
 
                 Department randomDept = departments.get(random.nextInt(departments.size()));
                 emp.setCurrentDepartment(randomDept);
 
                 employeeRepository.save(emp);
             }
-            log.info("Successfully added 10 employees");
+            log.info("Successfully added 40 employees");
         }
     }
 }
