@@ -12,6 +12,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @AllArgsConstructor
@@ -24,39 +25,67 @@ public class RelocationEngine {
     private final EfficiencyService efficiencyService;
 
     public void checkAndBalanceWorkforce() {
-        log.info("Checking for balance workforce at: {}", LocalDateTime.now(clock));
 
-        List<Department> departments = departmentRepository.findAll();
-        List<Department> sortedDepartments = departments.stream()
-                .sorted(Comparator.comparingDouble(this::calculateDeficit).reversed())
-                .toList();
+        boolean continuationPossible = true;
+        int safetyCounter = 0;
+        int maxAllowedMovesPerTick = 50;
 
-        if (sortedDepartments.size() <= 1) {
-            return;
+        while(continuationPossible && safetyCounter < maxAllowedMovesPerTick) {
+            List<Department> departments = departmentRepository.findAll();
+            List<Department> sortedDepartments = departments.stream()
+                    .sorted(Comparator.comparingDouble(this::calculateDeficit).reversed())
+                    .toList();
+
+            sortedDepartments.forEach(department -> log.info("Department: {}, Deficit: {}", department.getName(), calculateDeficit(department)));
+
+            if (sortedDepartments.size() <= 1) {
+                break;
+            }
+
+            Department recipient = sortedDepartments.getFirst();
+            Department giver = sortedDepartments.getLast();
+
+            double recipientDeficit = calculateDeficit(recipient);
+            double giverDeficit = calculateDeficit(giver);
+
+            if(recipientDeficit <= 0) {
+                log.info("All departments have negative deficit");
+                continuationPossible = false;
+                continue;
+            }
+
+            if(recipientDeficit > giverDeficit) {
+                boolean moved = relocateAvailableEmployee(giver, recipient);
+
+                if(!moved) {
+                    log.warn("Department {} needs more workforce, but {} can't provide more workers.", recipient.getName(), giver.getName());
+                    continuationPossible = false;
+                } else {
+                    safetyCounter++;
+                }
+            } else {
+                continuationPossible = false;
+            }
         }
 
-        sortedDepartments.forEach(department ->
-                log.info("Department: {}, Deficit: {}", department.getName(), calculateDeficit(department))
-        );
-
-        Department recipient = sortedDepartments.getFirst();
-        Department giver = sortedDepartments.getLast();
-
-        double recipientDeficit = calculateDeficit(recipient);
-        double giverDeficit = calculateDeficit(giver);
-
-        if (recipientDeficit > 0 && recipientDeficit > giverDeficit) {
-            log.info("Department {} gets workforce from department {}", recipient.getName(), giver.getName());
-            relocateAvailableEmployee(giver, recipient);
-        }
+        log.info("Balancing has stopped in {} moves", safetyCounter);
     }
 
-    private void relocateAvailableEmployee(Department giver, Department recipient) {
-        employeeRepository.findByCurrentDepartment(giver).stream()
+    private boolean relocateAvailableEmployee(Department giver, Department recipient) {
+        Optional<Employee> employeeOptional = employeeRepository.findByCurrentDepartment(giver).stream()
                 .filter(employee -> employee.isEligibleForRelocation(LocalDateTime.now(clock)))
                 .filter(employee -> !employee.isOnBreak())
-                .findFirst()
-                .ifPresent(employee -> executeTransfer(employee, giver, recipient));
+                .min((e1, e2) -> Double.compare(
+                        calculateNetBenefit(e2, giver, recipient),
+                        calculateNetBenefit(e1, giver, recipient)
+                ));
+
+        if(employeeOptional.isPresent()) {
+            executeTransfer(employeeOptional.get(), giver, recipient);
+            return true;
+        }
+
+        return false;
     }
 
     private void executeTransfer(Employee employee, Department giver, Department recipient) {
@@ -84,5 +113,15 @@ public class RelocationEngine {
 
     private double calculateDeficit(Department dept) {
         return dept.getRequiredIPH() - (dept.getCurrentIPH() * dept.getPerformanceMultiplier());
+    }
+
+    private double calculateNetBenefit(Employee employee, Department giver, Department recipient) {
+        int skillAtGiver = employee.getSkillForDepartment(giver.getName());
+        int skillAtRecipient = employee.getSkillForDepartment(recipient.getName());
+
+        double loss = efficiencyService.getIphContribution(giver.getName(), skillAtGiver);
+        double gain = efficiencyService.getIphContribution(recipient.getName(), skillAtRecipient);
+
+        return gain - loss;
     }
 }
