@@ -1,5 +1,7 @@
 package com.podsadowski.warehouse.config;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -10,12 +12,21 @@ import java.time.temporal.ChronoUnit;
 @Profile("demo")
 public class MutableClock extends Clock {
 
-    private Instant currentInstant;
+    private final TimeState state;
     private final ZoneId zoneId;
 
     public MutableClock() {
         this.zoneId = ZoneId.systemDefault();
-        this.currentInstant = LocalDate.now().atTime(6, 0).atZone(this.zoneId).toInstant();
+        Instant initialInstant = LocalDate.now()
+                .atTime(6, 0)
+                .atZone(this.zoneId)
+                .toInstant();
+        this.state = new TimeState(initialInstant);
+    }
+
+    private MutableClock(TimeState state, ZoneId zoneId) {
+        this.state = state;
+        this.zoneId = zoneId;
     }
 
     @Override
@@ -25,15 +36,29 @@ public class MutableClock extends Clock {
 
     @Override
     public Clock withZone(ZoneId zone) {
-        return this;
+        if (zone.equals(this.zoneId)) {
+            return this;
+        }
+        return new MutableClock(this.state, zone);
     }
 
     @Override
     public Instant instant() {
-        return this.currentInstant;
+        return this.state.getInstant();
     }
 
     public void addMinutes(long minutes) {
-        this.currentInstant = this.currentInstant.plus(minutes, ChronoUnit.MINUTES);
+        this.state.setInstant(this.state.getInstant().plus(minutes, ChronoUnit.MINUTES));
+    }
+
+    @Setter
+    @Getter
+    private static class TimeState {
+        private Instant instant;
+
+        public TimeState(Instant instant) {
+            this.instant = instant;
+        }
+
     }
 }
