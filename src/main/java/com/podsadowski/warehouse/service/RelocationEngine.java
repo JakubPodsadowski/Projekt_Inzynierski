@@ -1,10 +1,11 @@
 package com.podsadowski.warehouse.service;
 
+import com.podsadowski.warehouse.config.WarehouseProperties;
 import com.podsadowski.warehouse.entity.Department;
 import com.podsadowski.warehouse.entity.Employee;
 import com.podsadowski.warehouse.repository.DepartmentRepository;
 import com.podsadowski.warehouse.repository.EmployeeRepository;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -15,113 +16,262 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 @Slf4j
 public class RelocationEngine {
+
+    private static final int TOP_PERFORMER_SAMPLE_SIZE = 3;
 
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
     private final Clock clock;
-    private final EfficiencyService efficiencyService;
+    private final EmployeePerformanceService employeePerformanceService;
+    private final WarehouseProperties warehouseProperties;
 
     public void checkAndBalanceWorkforce() {
+        WarehouseProperties.Relocation config = warehouseProperties.getRelocation();
+        LocalDateTime now = LocalDateTime.now(clock);
 
-        boolean continuationPossible = true;
-        int safetyCounter = 0;
-        int maxAllowedMovesPerTick = 50;
+        List<Department> departments = departmentRepository.findAll();
+        logDeficits(departments);
 
-        while(continuationPossible && safetyCounter < maxAllowedMovesPerTick) {
-            List<Department> departments = departmentRepository.findAll();
-            List<Department> sortedDepartments = departments.stream()
-                    .sorted(Comparator.comparingDouble(this::calculateDeficit).reversed())
-                    .toList();
+        if (isBalanced(departments, config)) {
+            log.debug("All departments at or above capacity, no relocation needed");
+            return;
+        }
 
-            sortedDepartments.forEach(department -> log.info("Department: {}, Deficit: {}", department.getName(), calculateDeficit(department)));
-
-            if (sortedDepartments.size() <= 1) {
+        int scheduled = 0;
+        while (scheduled < config.getMaxMovesPerTick()) {
+            List<Department> currentDepartments = departmentRepository.findAll();
+            if (isBalanced(currentDepartments, config)) {
                 break;
             }
 
-            Department recipient = sortedDepartments.getFirst();
-            Department giver = sortedDepartments.getLast();
+            Optional<RelocationCandidate> candidate = findBestRelocation(currentDepartments, now, config);
+            if (candidate.isEmpty()) {
+                logRelocationBlockers(currentDepartments, now, config);
+                break;
+            }
 
+            scheduleRelocation(candidate.get());
+            scheduled++;
+        }
+
+        if (scheduled > 0) {
+            log.info("Scheduled {} relocation(s) to execute after order completion", scheduled);
+        }
+    }
+
+    private boolean isBalanced(List<Department> departments, WarehouseProperties.Relocation config) {
+        double tolerance = config.getBalanceToleranceIph();
+        return departments.stream().noneMatch(department -> calculateDeficit(department) > tolerance);
+    }
+
+    private Optional<RelocationCandidate> findBestRelocation(
+            List<Department> departments,
+            LocalDateTime now,
+            WarehouseProperties.Relocation config
+    ) {
+        double tolerance = config.getBalanceToleranceIph();
+
+        List<Department> recipients = departments.stream()
+                .filter(department -> calculateDeficit(department) > tolerance)
+                .sorted(Comparator.comparingDouble(this::calculateDeficit).reversed())
+                .toList();
+
+        List<Department> givers = departments.stream()
+                .filter(department -> calculateDeficit(department) < -tolerance)
+                .sorted(Comparator.comparingDouble(this::calculateDeficit))
+                .toList();
+
+        for (Department recipient : recipients) {
             double recipientDeficit = calculateDeficit(recipient);
-            double giverDeficit = calculateDeficit(giver);
+            double benchmarkIph = getTopPerformerBenchmark(recipient);
+            double iphToFlipToSurplus = recipientDeficit + tolerance;
+            int peopleNeeded = calculatePeopleNeeded(iphToFlipToSurplus, benchmarkIph);
 
-            if(recipientDeficit <= 0) {
-                log.info("All departments have negative deficit");
-                continuationPossible = false;
-                continue;
-            }
-
-            if(recipientDeficit > giverDeficit) {
-                boolean moved = relocateAvailableEmployee(giver, recipient);
-
-                if(!moved) {
-                    log.warn("Department {} needs more workforce, but {} can't provide more workers.", recipient.getName(), giver.getName());
-                    continuationPossible = false;
-                } else {
-                    safetyCounter++;
+            for (Department giver : givers) {
+                if (giver.getId().equals(recipient.getId())) {
+                    continue;
                 }
-            } else {
-                continuationPossible = false;
+
+                List<Employee> weakestMovable = findWeakestMovableEmployees(
+                        giver, peopleNeeded, now, config);
+
+                if (weakestMovable.isEmpty()) {
+                    continue;
+                }
+
+                Employee employee = weakestMovable.getFirst();
+                double lossAtGiver = employee.getCurrentIph();
+                double gainAtRecipient = employeePerformanceService.predictIphAtDepartment(
+                        employee, recipient.getName(), now);
+
+                if (gainAtRecipient <= 0) {
+                    continue;
+                }
+
+                return Optional.of(new RelocationCandidate(
+                        employee,
+                        giver,
+                        recipient,
+                        lossAtGiver,
+                        gainAtRecipient,
+                        peopleNeeded,
+                        benchmarkIph,
+                        recipientDeficit));
             }
         }
 
-        log.info("Balancing has stopped in {} moves", safetyCounter);
+        return Optional.empty();
     }
 
-    private boolean relocateAvailableEmployee(Department giver, Department recipient) {
-        Optional<Employee> employeeOptional = employeeRepository.findByCurrentDepartment(giver).stream()
-                .filter(employee -> employee.isEligibleForRelocation(LocalDateTime.now(clock)))
+    private double getTopPerformerBenchmark(Department recipient) {
+        List<Employee> topPerformers = employeeRepository.findByCurrentDepartment(recipient).stream()
                 .filter(employee -> !employee.isOnBreak())
-                .min((e1, e2) -> Double.compare(
-                        calculateNetBenefit(e2, giver, recipient),
-                        calculateNetBenefit(e1, giver, recipient)
-                ));
+                .filter(employee -> employee.getCurrentIph() > 0)
+                .sorted(Comparator.comparingDouble(Employee::getCurrentIph).reversed())
+                .limit(TOP_PERFORMER_SAMPLE_SIZE)
+                .toList();
 
-        if(employeeOptional.isPresent()) {
-            executeTransfer(employeeOptional.get(), giver, recipient);
-            return true;
+        if (topPerformers.isEmpty()) {
+            return employeePerformanceService.getDefaultIph(recipient.getName());
         }
 
-        return false;
+        return topPerformers.stream()
+                .mapToDouble(Employee::getCurrentIph)
+                .average()
+                .orElse(employeePerformanceService.getDefaultIph(recipient.getName()));
     }
 
-    private void executeTransfer(Employee employee, Department giver, Department recipient) {
-        int skillAtGiver = employee.getSkillForDepartment(giver.getName());
-        int skillAtRecipient = employee.getSkillForDepartment(recipient.getName());
+    private int calculatePeopleNeeded(double iphGap, double benchmarkIph) {
+        if (benchmarkIph <= 0) {
+            return 1;
+        }
+        return Math.max(1, (int) Math.ceil(iphGap / benchmarkIph));
+    }
 
-        double contributionFromGiver = efficiencyService.getIphContribution(giver.getName(), skillAtGiver);
-        double contributionToRecipient = efficiencyService.getIphContribution(recipient.getName(), skillAtRecipient);
+    /**
+     * Returns eligible employees who are among the N weakest on their current (surplus) department.
+     */
+    private List<Employee> findWeakestMovableEmployees(
+            Department giver,
+            int peopleNeeded,
+            LocalDateTime now,
+            WarehouseProperties.Relocation config
+    ) {
+        List<Employee> rankedByIph = employeeRepository.findByCurrentDepartment(giver).stream()
+                .filter(employee -> employee.getCurrentIph() > 0)
+                .sorted(Comparator.comparingDouble(Employee::getCurrentIph))
+                .toList();
 
-        giver.setCurrentIPH(giver.getCurrentIPH() - contributionFromGiver);
-        recipient.setCurrentIPH(recipient.getCurrentIPH() + contributionToRecipient);
+        List<Long> weakestIds = rankedByIph.stream()
+                .limit(peopleNeeded)
+                .map(Employee::getId)
+                .toList();
 
-        employee.setCurrentDepartment(recipient);
-        employee.setLastRelocatedAt(LocalDateTime.now(clock));
-        employee.setRelocationCountToday(employee.getRelocationCountToday() + 1);
+        return rankedByIph.stream()
+                .filter(employee -> weakestIds.contains(employee.getId()))
+                .filter(employee -> employee.isEligibleForRelocation(
+                        now, config.getCooldownMinutes(), config.getMaxRelocationsPerDay()))
+                .toList();
+    }
 
+    private void logRelocationBlockers(
+            List<Department> departments,
+            LocalDateTime now,
+            WarehouseProperties.Relocation config
+    ) {
+        double tolerance = config.getBalanceToleranceIph();
+
+        long surplusDepartments = departments.stream()
+                .filter(department -> calculateDeficit(department) < -tolerance)
+                .count();
+        long deficitDepartments = departments.stream()
+                .filter(department -> calculateDeficit(department) > tolerance)
+                .count();
+
+        long eligibleWeakestInSurplus = departments.stream()
+                .filter(department -> calculateDeficit(department) < -tolerance)
+                .mapToLong(department -> {
+                    Department worstRecipient = departments.stream()
+                            .filter(d -> calculateDeficit(d) > tolerance)
+                            .max(Comparator.comparingDouble(this::calculateDeficit))
+                            .orElse(null);
+                    if (worstRecipient == null) {
+                        return 0L;
+                    }
+                    int peopleNeeded = calculatePeopleNeeded(
+                            calculateDeficit(worstRecipient) + tolerance,
+                            getTopPerformerBenchmark(worstRecipient));
+                    return findWeakestMovableEmployees(department, peopleNeeded, now, config).size();
+                })
+                .sum();
+
+        long pendingRelocations = employeeRepository.findAll().stream()
+                .filter(Employee::hasPendingRelocation)
+                .count();
+
+        log.warn(
+                "No relocation scheduled. Surplus depts: {}, deficit depts: {}, "
+                        + "eligible weakest in surplus: {}, pending relocations: {}",
+                surplusDepartments,
+                deficitDepartments,
+                eligibleWeakestInSurplus,
+                pendingRelocations
+        );
+    }
+
+    private void scheduleRelocation(RelocationCandidate candidate) {
+        Employee employee = candidate.employee();
+        Department recipient = candidate.recipient();
+
+        employee.setTargetDepartment(recipient);
         employeeRepository.save(employee);
-        departmentRepository.save(giver);
-        departmentRepository.save(recipient);
 
-        log.info("Relocation: {} from {} ({} IPH) to {} ({} IPH)",
-                employee.getId(), giver.getName(), contributionFromGiver,
-                recipient.getName(), contributionToRecipient);
+        log.info(
+                "Scheduled weakest eligible employee {} from {} (deficit {}) to {} (deficit {}). "
+                        + "Need ~{} people at ~{} IPH benchmark, moving {} IPH -> {} IPH ({} items left)",
+                employee.getId(),
+                candidate.giver().getName(),
+                String.format("%.1f", calculateDeficit(candidate.giver())),
+                recipient.getName(),
+                String.format("%.1f", candidate.recipientDeficit()),
+                candidate.peopleNeeded(),
+                String.format("%.1f", candidate.benchmarkIph()),
+                String.format("%.1f", candidate.lossAtGiver()),
+                String.format("%.1f", candidate.gainAtRecipient()),
+                employee.getOrderItemsRemaining());
+    }
+
+    private void logDeficits(List<Department> departments) {
+        double imbalance = calculateImbalance(departments);
+        departments.stream()
+                .sorted(Comparator.comparingDouble(this::calculateDeficit).reversed())
+                .forEach(department -> log.info("Department: {}, Deficit: {}",
+                        department.getName(), calculateDeficit(department)));
+        log.info("Deficit imbalance (max-min): {}", String.format("%.1f", imbalance));
+    }
+
+    private double calculateImbalance(List<Department> departments) {
+        double min = departments.stream().mapToDouble(this::calculateDeficit).min().orElse(0);
+        double max = departments.stream().mapToDouble(this::calculateDeficit).max().orElse(0);
+        return max - min;
     }
 
     private double calculateDeficit(Department dept) {
         return dept.getRequiredIPH() - (dept.getCurrentIPH() * dept.getPerformanceMultiplier());
     }
 
-    private double calculateNetBenefit(Employee employee, Department giver, Department recipient) {
-        int skillAtGiver = employee.getSkillForDepartment(giver.getName());
-        int skillAtRecipient = employee.getSkillForDepartment(recipient.getName());
-
-        double loss = efficiencyService.getIphContribution(giver.getName(), skillAtGiver);
-        double gain = efficiencyService.getIphContribution(recipient.getName(), skillAtRecipient);
-
-        return gain - loss;
+    private record RelocationCandidate(
+            Employee employee,
+            Department giver,
+            Department recipient,
+            double lossAtGiver,
+            double gainAtRecipient,
+            int peopleNeeded,
+            double benchmarkIph,
+            double recipientDeficit
+    ) {
     }
 }

@@ -1,0 +1,43 @@
+spring:
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: "com.podsadowski.warehouse.dto"
+
+logging:
+  level:
+    org.apache.kafka: warn
+    org.springframework.kafka: warn
+    com.podsadowski.warehouse.kafka: warn
+
+warehouse:
+  scheduler:
+    tick-interval-ms: 2000
+  simulation:
+    tick-interval-ms: 2000
+    simulated-minutes-per-tick: 120
+    work-interval-seconds-min: 45
+    work-interval-seconds-max: 90
+  performance:
+    observation-window-days: 7
+    min-worked-hours: 0.1
+    default-iph:
+      PICKING: 85
+      PACKING: 55
+      PUTAWAY: 40
+      PREP_UNPACKING: 75
+  relocation:
+    max-moves-per-tick: 5
+    balance-tolerance-iph: 10
+    balance-imbalance-iph: 25
+    cooldown-minutes: 60
+    max-relocations-per-day: 3
+    travel-minutes: 5
+    order-items-min: 5
+    order-items-max: 15
