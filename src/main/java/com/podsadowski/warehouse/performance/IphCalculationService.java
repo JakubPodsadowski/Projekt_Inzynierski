@@ -1,9 +1,9 @@
-package com.podsadowski.warehouse.service;
+package com.podsadowski.warehouse.performance;
 
-import com.podsadowski.warehouse.entity.Department;
-import com.podsadowski.warehouse.entity.Employee;
-import com.podsadowski.warehouse.repository.DepartmentRepository;
-import com.podsadowski.warehouse.repository.EmployeeRepository;
+import com.podsadowski.warehouse.domain.entity.Department;
+import com.podsadowski.warehouse.domain.entity.Employee;
+import com.podsadowski.warehouse.domain.repository.DepartmentRepository;
+import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +15,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Aggregates active employee IPH into each department's {@code currentIPH}.
+ * Excludes employees on break or in transit.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j

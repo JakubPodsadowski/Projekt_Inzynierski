@@ -1,10 +1,11 @@
-package com.podsadowski.warehouse.service;
+package com.podsadowski.warehouse.relocation;
 
 import com.podsadowski.warehouse.config.WarehouseProperties;
-import com.podsadowski.warehouse.entity.Department;
-import com.podsadowski.warehouse.entity.Employee;
-import com.podsadowski.warehouse.repository.DepartmentRepository;
-import com.podsadowski.warehouse.repository.EmployeeRepository;
+import com.podsadowski.warehouse.domain.entity.Department;
+import com.podsadowski.warehouse.domain.entity.Employee;
+import com.podsadowski.warehouse.domain.repository.DepartmentRepository;
+import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,12 +16,16 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Plans workforce relocations from surplus to deficit departments.
+ * Moves the weakest eligible performers based on how many top-performer equivalents
+ * the deficit department needs. Only schedules moves; execution is handled by
+ * {@link RelocationFulfillmentService}.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class RelocationEngine {
-
-    private static final int TOP_PERFORMER_SAMPLE_SIZE = 3;
 
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
@@ -127,11 +132,12 @@ public class RelocationEngine {
     }
 
     private double getTopPerformerBenchmark(Department recipient) {
+        int sampleSize = warehouseProperties.getRelocation().getTopPerformerSampleSize();
         List<Employee> topPerformers = employeeRepository.findByCurrentDepartment(recipient).stream()
                 .filter(employee -> !employee.isOnBreak())
                 .filter(employee -> employee.getCurrentIph() > 0)
                 .sorted(Comparator.comparingDouble(Employee::getCurrentIph).reversed())
-                .limit(TOP_PERFORMER_SAMPLE_SIZE)
+                .limit(sampleSize)
                 .toList();
 
         if (topPerformers.isEmpty()) {

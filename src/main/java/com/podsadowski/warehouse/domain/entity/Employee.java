@@ -1,4 +1,4 @@
-package com.podsadowski.warehouse.entity;
+package com.podsadowski.warehouse.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -7,6 +7,9 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * Warehouse employee with department assignment, relocation state, and current IPH.
+ */
 @Entity
 @Table(name = "employees")
 @Getter
@@ -24,10 +27,12 @@ public class Employee {
     @Column(name = "last_name", nullable = false)
     private String lastName;
 
+    /** Department the employee is currently assigned to (or walking from). */
     @ManyToOne
     @JoinColumn(name = "department_id")
     private Department currentDepartment;
 
+    /** Planned destination set by {@link com.podsadowski.warehouse.relocation.RelocationEngine}; null when not relocating. */
     @ManyToOne
     @JoinColumn(name = "target_department_id")
     private Department targetDepartment;
@@ -48,9 +53,11 @@ public class Employee {
     @Column(name = "current_iph", nullable = false)
     private double currentIph = 0.0;
 
+    /** Items left on the current order; relocation transit starts only when this reaches 0. */
     @Column(name = "order_items_remaining", nullable = false)
     private int orderItemsRemaining = 0;
 
+    /** Simulated arrival time while walking to {@link #targetDepartment}; null when not in transit. */
     @Column(name = "relocating_until")
     private LocalDateTime relocatingUntil;
 

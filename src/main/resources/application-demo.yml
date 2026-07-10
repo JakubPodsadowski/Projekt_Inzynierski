@@ -8,7 +8,7 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       auto-offset-reset: earliest
       properties:
-        spring.json.trusted.packages: "com.podsadowski.warehouse.dto"
+        spring.json.trusted.packages: "com.podsadowski.warehouse.domain.dto"
 
 logging:
   level:
@@ -22,22 +22,22 @@ warehouse:
   simulation:
     tick-interval-ms: 2000
     simulated-minutes-per-tick: 120
-    work-interval-seconds-min: 45
-    work-interval-seconds-max: 90
-  performance:
-    observation-window-days: 7
-    min-worked-hours: 0.1
-    default-iph:
-      PICKING: 85
-      PACKING: 55
-      PUTAWAY: 40
-      PREP_UNPACKING: 75
+    start-time: "06:00"
+    break-poll-ms: 1000
+    throughput-random-min: 0.85
+    throughput-random-max: 1.15
+  breaks:
+    first-shift:
+      first-break-start: "09:00"
+      first-break-end: "09:30"
+      second-break-start: "12:00"
+      second-break-end: "12:30"
+    second-shift:
+      first-break-start: "09:30"
+      first-break-end: "10:00"
+      second-break-start: "12:30"
+      second-break-end: "13:00"
   relocation:
-    max-moves-per-tick: 5
-    balance-tolerance-iph: 10
-    balance-imbalance-iph: 25
-    cooldown-minutes: 60
-    max-relocations-per-day: 3
-    travel-minutes: 5
-    order-items-min: 5
-    order-items-max: 15
+    top-performer-sample-size: 3
+  seeding:
+    employee-count: 40

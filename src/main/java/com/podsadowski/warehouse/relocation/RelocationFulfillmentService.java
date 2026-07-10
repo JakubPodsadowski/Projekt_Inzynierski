@@ -1,9 +1,10 @@
-package com.podsadowski.warehouse.service;
+package com.podsadowski.warehouse.relocation;
 
 import com.podsadowski.warehouse.config.WarehouseProperties;
-import com.podsadowski.warehouse.entity.Department;
-import com.podsadowski.warehouse.entity.Employee;
-import com.podsadowski.warehouse.repository.EmployeeRepository;
+import com.podsadowski.warehouse.domain.entity.Department;
+import com.podsadowski.warehouse.domain.entity.Employee;
+import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * Executes scheduled relocations in three phases: finish current order, walk to target, arrive.
+ * Called on every scheduler tick before IPH recalculation.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -61,13 +66,15 @@ public class RelocationFulfillmentService {
         Department target = employee.getTargetDepartment();
         Department previous = employee.getCurrentDepartment();
 
+        double predictedIph = employeePerformanceService.predictIphAtDepartment(
+                employee, target.getName(), now);
+
         employee.setCurrentDepartment(target);
         employee.setTargetDepartment(null);
         employee.setRelocatingUntil(null);
         employee.setLastRelocatedAt(now);
         employee.setRelocationCountToday(employee.getRelocationCountToday() + 1);
-        employee.setCurrentIph(employeePerformanceService.predictIphAtDepartment(
-                employee, target.getName(), now));
+        employee.setCurrentIph(predictedIph);
         employee.setOrderItemsRemaining(randomOrderSize());
 
         log.info("Employee {} arrived at {} (from {}, expected {} IPH)",

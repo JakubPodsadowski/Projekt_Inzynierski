@@ -1,13 +1,12 @@
-package com.podsadowski.warehouse.scheduler;
+package com.podsadowski.warehouse.scheduling;
 
 import com.podsadowski.warehouse.config.MutableClock;
-import com.podsadowski.warehouse.entity.Employee;
-import com.podsadowski.warehouse.repository.EmployeeRepository;
-import com.podsadowski.warehouse.service.BreakManager;
-import com.podsadowski.warehouse.service.EmployeePerformanceService;
-import com.podsadowski.warehouse.service.IphCalculationService;
-import com.podsadowski.warehouse.service.RelocationEngine;
-import com.podsadowski.warehouse.service.RelocationFulfillmentService;
+import com.podsadowski.warehouse.domain.entity.Employee;
+import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.performance.EmployeePerformanceService;
+import com.podsadowski.warehouse.performance.IphCalculationService;
+import com.podsadowski.warehouse.relocation.RelocationEngine;
+import com.podsadowski.warehouse.relocation.RelocationFulfillmentService;
 import com.podsadowski.warehouse.simulation.SimulationTimeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,10 +18,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Orchestrates one simulation tick: advances time, applies breaks, fulfills relocations,
+ * recalculates IPH, and plans new workforce moves.
+ */
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class RelocationScheduler {
+public class WarehouseTickScheduler {
 
     private final RelocationEngine relocationEngine;
     private final RelocationFulfillmentService relocationFulfillmentService;
@@ -35,25 +38,28 @@ public class RelocationScheduler {
 
     private LocalDate lastProcessedDate;
 
-    @Scheduled(fixedRateString = "${warehouse.scheduler.tick-interval-ms:10000}")
-    public void triggerRelocation() {
-        if (clock instanceof MutableClock mutableClock) {
-            mutableClock.addMinutes(simulationTimeService.getSimulatedMinutesPerTick());
-        }
+    @Scheduled(fixedRateString = "${warehouse.scheduler.tick-interval-ms}")
+    public void runTick() {
+        advanceSimulatedClock();
 
         LocalDateTime currentTime = LocalDateTime.now(clock);
-        log.debug("Time: {}", currentTime);
+        log.debug("Tick at simulated time: {}", currentTime);
 
         breakManager.processBreaks(currentTime.toLocalTime());
         relocationFulfillmentService.processPendingRelocations(currentTime);
         employeePerformanceService.recalculateAllEmployeeIph(currentTime);
         iphCalculationService.recalculateDepartmentIph();
         relocationEngine.checkAndBalanceWorkforce();
-        iphCalculationService.recalculateDepartmentIph();
-        resetDailyCountersIfMidnight(currentTime.toLocalDate());
+        resetDailyCountersIfNewDay(currentTime.toLocalDate());
     }
 
-    private void resetDailyCountersIfMidnight(LocalDate currentDate) {
+    private void advanceSimulatedClock() {
+        if (clock instanceof MutableClock mutableClock) {
+            mutableClock.addMinutes(simulationTimeService.getSimulatedMinutesPerTick());
+        }
+    }
+
+    private void resetDailyCountersIfNewDay(LocalDate currentDate) {
         if (lastProcessedDate != null && currentDate.isAfter(lastProcessedDate)) {
             List<Employee> employees = employeeRepository.findAll();
             for (Employee employee : employees) {

@@ -1,10 +1,11 @@
 package com.podsadowski.warehouse.simulation;
 
-import com.podsadowski.warehouse.dto.WorkProgressEvent;
-import com.podsadowski.warehouse.entity.Employee;
-import com.podsadowski.warehouse.repository.EmployeeRepository;
-import com.podsadowski.warehouse.service.EmployeePerformanceService;
-import com.podsadowski.warehouse.service.RelocationFulfillmentService;
+import com.podsadowski.warehouse.config.WarehouseProperties;
+import com.podsadowski.warehouse.domain.dto.WorkProgressEvent;
+import com.podsadowski.warehouse.domain.entity.Employee;
+import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.performance.EmployeePerformanceService;
+import com.podsadowski.warehouse.relocation.RelocationFulfillmentService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -14,11 +15,13 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * Demo-profile per-employee work loop. Simulates item processing at accelerated time
+ * and publishes {@link WorkProgressEvent} records to Kafka.
+ */
 @Slf4j
 @AllArgsConstructor
 public class EmployeeSimulationTask implements Runnable {
-
-    private static final long BREAK_POLL_REAL_MS = 1000;
 
     private final Long employeeId;
     private final EmployeeRepository employeeRepository;
@@ -28,9 +31,13 @@ public class EmployeeSimulationTask implements Runnable {
     private final SimulationTimeService simulationTimeService;
     private final EmployeePerformanceService employeePerformanceService;
     private final RelocationFulfillmentService relocationFulfillmentService;
+    private final WarehouseProperties warehouseProperties;
 
     @Override
     public void run() {
+        WarehouseProperties.Simulation simulation = warehouseProperties.getSimulation();
+        String progressTopic = warehouseProperties.getKafka().getProgressTopic();
+
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 long simulatedIntervalSeconds = simulationTimeService.randomWorkIntervalSeconds();
@@ -46,7 +53,7 @@ public class EmployeeSimulationTask implements Runnable {
                 LocalDateTime now = LocalDateTime.now(clock);
 
                 if (employee.isOnBreak() || employee.isInTransit(now)) {
-                    Thread.sleep(BREAK_POLL_REAL_MS);
+                    Thread.sleep(simulation.getBreakPollMs());
                     continue;
                 }
 
@@ -64,7 +71,9 @@ public class EmployeeSimulationTask implements Runnable {
                         employee, department.getName(), now);
 
                 double intervalHours = simulatedIntervalSeconds / 3600.0;
-                double randomFactor = ThreadLocalRandom.current().nextDouble(0.85, 1.15);
+                double randomFactor = ThreadLocalRandom.current().nextDouble(
+                        simulation.getThroughputRandomMin(),
+                        simulation.getThroughputRandomMax());
                 int processed = probabilisticRound(targetIph * intervalHours * randomFactor);
                 processed = Math.min(processed, employee.getOrderItemsRemaining());
 
@@ -84,7 +93,7 @@ public class EmployeeSimulationTask implements Runnable {
                 );
 
                 String jsonEvent = objectMapper.writeValueAsString(event);
-                kafkaTemplate.send("warehouse-progress", employee.getId().toString(), jsonEvent);
+                kafkaTemplate.send(progressTopic, employee.getId().toString(), jsonEvent);
             } catch (InterruptedException e) {
                 log.info("Employee thread interrupted, ID: {}", employeeId);
                 Thread.currentThread().interrupt();

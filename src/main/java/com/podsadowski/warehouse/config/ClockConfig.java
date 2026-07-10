@@ -8,9 +8,16 @@ import java.time.Clock;
 
 @Configuration
 public class ClockConfig {
+
     @Bean
     @Profile("!demo")
-    public Clock getClock() {
+    public Clock clock() {
         return Clock.systemDefaultZone();
+    }
+
+    @Bean
+    @Profile("demo")
+    public Clock mutableClock(WarehouseProperties warehouseProperties) {
+        return new MutableClock(warehouseProperties);
     }
 }

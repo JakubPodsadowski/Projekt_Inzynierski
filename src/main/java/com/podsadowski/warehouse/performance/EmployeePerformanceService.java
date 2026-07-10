@@ -1,10 +1,10 @@
-package com.podsadowski.warehouse.service;
+package com.podsadowski.warehouse.performance;
 
 import com.podsadowski.warehouse.config.WarehouseProperties;
-import com.podsadowski.warehouse.entity.DepartmentName;
-import com.podsadowski.warehouse.entity.Employee;
-import com.podsadowski.warehouse.repository.EmployeeRepository;
-import com.podsadowski.warehouse.repository.WorkLogRepository;
+import com.podsadowski.warehouse.domain.entity.DepartmentName;
+import com.podsadowski.warehouse.domain.entity.Employee;
+import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.domain.repository.WorkLogRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +15,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Calculates per-employee IPH from {@code work_logs} and predicts IPH in new departments.
+ * Invoked on every scheduler tick after work logs are persisted.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -47,6 +51,10 @@ public class EmployeePerformanceService {
         return predictIphAtDepartment(employee, department, now);
     }
 
+    /**
+     * Predicts IPH when an employee works in a department without observed history there.
+     * Uses personal factor = currentIph / norm(currentDept), scaled to target department norm.
+     */
     public double predictIphAtDepartment(Employee employee, DepartmentName targetDepartment, LocalDateTime now) {
         if (hasObservedIph(employee.getId(), targetDepartment)) {
             return getIph(employee.getId(), targetDepartment, now);

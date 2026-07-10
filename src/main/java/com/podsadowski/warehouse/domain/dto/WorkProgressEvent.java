@@ -1,6 +1,6 @@
-package com.podsadowski.warehouse.dto;
+package com.podsadowski.warehouse.domain.dto;
 
-import com.podsadowski.warehouse.entity.DepartmentName;
+import com.podsadowski.warehouse.domain.entity.DepartmentName;
 
 import java.time.LocalDateTime;
 

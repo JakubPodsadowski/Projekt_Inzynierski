@@ -1,6 +1,6 @@
-package com.podsadowski.warehouse.repository;
+package com.podsadowski.warehouse.domain.repository;
 
-import com.podsadowski.warehouse.entity.WorkLog;
+import com.podsadowski.warehouse.domain.entity.WorkLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

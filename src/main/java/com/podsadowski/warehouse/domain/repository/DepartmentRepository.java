@@ -1,7 +1,7 @@
-package com.podsadowski.warehouse.repository;
+package com.podsadowski.warehouse.domain.repository;
 
-import com.podsadowski.warehouse.entity.Department;
-import com.podsadowski.warehouse.entity.DepartmentName;
+import com.podsadowski.warehouse.domain.entity.Department;
+import com.podsadowski.warehouse.domain.entity.DepartmentName;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

@@ -1,9 +1,10 @@
 package com.podsadowski.warehouse.simulation;
 
-import com.podsadowski.warehouse.entity.Employee;
-import com.podsadowski.warehouse.repository.EmployeeRepository;
-import com.podsadowski.warehouse.service.EmployeePerformanceService;
-import com.podsadowski.warehouse.service.RelocationFulfillmentService;
+import com.podsadowski.warehouse.config.WarehouseProperties;
+import com.podsadowski.warehouse.domain.entity.Employee;
+import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.performance.EmployeePerformanceService;
+import com.podsadowski.warehouse.relocation.RelocationFulfillmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -30,6 +31,7 @@ public class SimulationManager {
     private final SimulationTimeService simulationTimeService;
     private final EmployeePerformanceService employeePerformanceService;
     private final RelocationFulfillmentService relocationFulfillmentService;
+    private final WarehouseProperties warehouseProperties;
 
     @EventListener(ApplicationReadyEvent.class)
     public void startSimulation() {
@@ -46,7 +48,8 @@ public class SimulationManager {
                     clock,
                     simulationTimeService,
                     employeePerformanceService,
-                    relocationFulfillmentService
+                    relocationFulfillmentService,
+                    warehouseProperties
             );
 
             executor.submit(task);

@@ -1,24 +1,17 @@
 package com.podsadowski.warehouse.config;
 
-import lombok.Getter;
-import lombok.Setter;
-import org.springframework.context.annotation.Profile;
-import org.springframework.stereotype.Component;
-
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 
-@Component
-@Profile("demo")
 public class MutableClock extends Clock {
-
     private final TimeState state;
     private final ZoneId zoneId;
 
-    public MutableClock() {
+    public MutableClock(WarehouseProperties warehouseProperties) {
         this.zoneId = ZoneId.systemDefault();
+        LocalTime startTime = warehouseProperties.getSimulation().getStartTime();
         Instant initialInstant = LocalDate.now()
-                .atTime(6, 0)
+                .atTime(startTime)
                 .atZone(this.zoneId)
                 .toInstant();
         this.state = new TimeState(initialInstant);
@@ -51,14 +44,19 @@ public class MutableClock extends Clock {
         this.state.setInstant(this.state.getInstant().plus(minutes, ChronoUnit.MINUTES));
     }
 
-    @Setter
-    @Getter
     private static class TimeState {
         private Instant instant;
 
-        public TimeState(Instant instant) {
+        TimeState(Instant instant) {
             this.instant = instant;
         }
 
+        Instant getInstant() {
+            return instant;
+        }
+
+        void setInstant(Instant instant) {
+            this.instant = instant;
+        }
     }
 }

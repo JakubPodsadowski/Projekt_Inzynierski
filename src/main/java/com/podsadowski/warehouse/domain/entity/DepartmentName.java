@@ -1,4 +1,4 @@
-package com.podsadowski.warehouse.entity;
+package com.podsadowski.warehouse.domain.entity;
 
 public enum DepartmentName {
     PREP_UNPACKING,

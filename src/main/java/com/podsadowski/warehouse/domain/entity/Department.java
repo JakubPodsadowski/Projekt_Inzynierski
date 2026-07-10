@@ -1,10 +1,14 @@
-package com.podsadowski.warehouse.entity;
+package com.podsadowski.warehouse.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Warehouse department with required and current aggregate IPH.
+ * Deficit = {@code requiredIPH - (currentIPH × performanceMultiplier)}.
+ */
 @Entity
 @Table(name = "departments")
 @Getter

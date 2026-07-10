@@ -1,4 +1,4 @@
-package com.podsadowski.warehouse.entity;
+package com.podsadowski.warehouse.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -7,6 +7,9 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * Historical work batch used to calculate employee IPH over a rolling window.
+ */
 @Entity
 @Table(name = "work_logs", indexes = {
         @Index(name = "idx_work_logs_employee_dept_ts",
