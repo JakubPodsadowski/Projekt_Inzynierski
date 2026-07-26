@@ -2,10 +2,12 @@ package com.podsadowski.warehouse.api.mapper;
 
 import com.podsadowski.warehouse.api.dto.DepartmentResponse;
 import com.podsadowski.warehouse.api.dto.EmployeeResponse;
+import com.podsadowski.warehouse.api.dto.RelocationLogResponse;
 import com.podsadowski.warehouse.api.dto.RelocationStatus;
 import com.podsadowski.warehouse.domain.entity.Department;
 import com.podsadowski.warehouse.domain.entity.DepartmentName;
 import com.podsadowski.warehouse.domain.entity.Employee;
+import com.podsadowski.warehouse.domain.entity.RelocationLog;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -64,5 +66,21 @@ public class WorkforceMapper {
             return RelocationStatus.IN_TRANSIT;
         }
         return RelocationStatus.SCHEDULED;
+    }
+
+    public RelocationLogResponse toRelocationLogResponse(RelocationLog relocationLog) {
+        return new RelocationLogResponse(
+                relocationLog.getId(),
+                relocationLog.getEmployeeId(),
+                relocationLog.getFromDepartment(),
+                relocationLog.getToDepartment(),
+                relocationLog.getStatus(),
+                relocationLog.getScheduledAt(),
+                relocationLog.getTransitStartedAt(),
+                relocationLog.getArrivedAt(),
+                relocationLog.getIphAtSource(),
+                relocationLog.getPredictedIphAtTarget(),
+                relocationLog.getIphOnArrival()
+        );
     }
 }

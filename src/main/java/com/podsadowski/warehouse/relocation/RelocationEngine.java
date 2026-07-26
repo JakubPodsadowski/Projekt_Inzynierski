@@ -3,8 +3,11 @@ package com.podsadowski.warehouse.relocation;
 import com.podsadowski.warehouse.config.WarehouseProperties;
 import com.podsadowski.warehouse.domain.entity.Department;
 import com.podsadowski.warehouse.domain.entity.Employee;
+import com.podsadowski.warehouse.domain.entity.RelocationLog;
+import com.podsadowski.warehouse.domain.entity.RelocationLogStatus;
 import com.podsadowski.warehouse.domain.repository.DepartmentRepository;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.domain.repository.RelocationLogRepository;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +32,7 @@ public class RelocationEngine {
 
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
+    private final RelocationLogRepository relocationLogRepository;
     private final Clock clock;
     private final EmployeePerformanceService employeePerformanceService;
     private final WarehouseProperties warehouseProperties;
@@ -231,9 +235,20 @@ public class RelocationEngine {
     private void scheduleRelocation(RelocationCandidate candidate) {
         Employee employee = candidate.employee();
         Department recipient = candidate.recipient();
+        LocalDateTime now = LocalDateTime.now(clock);
 
         employee.setTargetDepartment(recipient);
         employeeRepository.save(employee);
+
+        RelocationLog relocationLog = new RelocationLog();
+        relocationLog.setEmployeeId(employee.getId());
+        relocationLog.setFromDepartment(candidate.giver().getName());
+        relocationLog.setToDepartment(recipient.getName());
+        relocationLog.setStatus(RelocationLogStatus.SCHEDULED);
+        relocationLog.setScheduledAt(now);
+        relocationLog.setIphAtSource(candidate.lossAtGiver());
+        relocationLog.setPredictedIphAtTarget(candidate.gainAtRecipient());
+        relocationLogRepository.save(relocationLog);
 
         log.info(
                 "Scheduled weakest eligible employee {} from {} (deficit {}) to {} (deficit {}). "

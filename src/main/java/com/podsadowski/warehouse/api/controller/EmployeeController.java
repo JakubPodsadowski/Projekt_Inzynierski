@@ -1,6 +1,7 @@
 package com.podsadowski.warehouse.api.controller;
 
 import com.podsadowski.warehouse.api.dto.EmployeeResponse;
+import com.podsadowski.warehouse.api.dto.RelocationLogResponse;
 import com.podsadowski.warehouse.api.dto.RelocationStatus;
 import com.podsadowski.warehouse.api.service.WorkforceReadService;
 import lombok.RequiredArgsConstructor;
@@ -36,5 +37,13 @@ public class EmployeeController {
     @GetMapping("/departments/{departmentId}/employees")
     public List<EmployeeResponse> getEmployeesByDepartment(@PathVariable Long departmentId) {
         return workforceReadService.findEmployeesByDepartmentId(departmentId);
+    }
+
+    @GetMapping("/employees/{id}/relocations")
+    public List<RelocationLogResponse> getEmployeeRelocations(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer limit
+    ) {
+        return workforceReadService.findEmployeeRelocationHistory(id, limit);
     }
 }

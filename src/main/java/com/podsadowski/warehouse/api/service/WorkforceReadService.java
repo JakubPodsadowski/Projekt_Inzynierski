@@ -3,6 +3,7 @@ package com.podsadowski.warehouse.api.service;
 import com.podsadowski.warehouse.api.dto.DepartmentResponse;
 import com.podsadowski.warehouse.api.dto.EmployeeResponse;
 import com.podsadowski.warehouse.api.dto.OverviewResponse;
+import com.podsadowski.warehouse.api.dto.RelocationLogResponse;
 import com.podsadowski.warehouse.api.dto.RelocationStatus;
 import com.podsadowski.warehouse.api.exception.InvalidRequestException;
 import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
@@ -12,7 +13,9 @@ import com.podsadowski.warehouse.domain.entity.DepartmentName;
 import com.podsadowski.warehouse.domain.entity.Employee;
 import com.podsadowski.warehouse.domain.repository.DepartmentRepository;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.domain.repository.RelocationLogRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +33,7 @@ public class WorkforceReadService {
 
     private final DepartmentRepository departmentRepository;
     private final EmployeeRepository employeeRepository;
+    private final RelocationLogRepository relocationLogRepository;
     private final WorkforceMapper workforceMapper;
     private final Clock clock;
 
@@ -132,6 +136,49 @@ public class WorkforceReadService {
                 employeesOnBreak,
                 employees.size()
         );
+    }
+
+    public List<RelocationLogResponse> findRelocationHistory(Long employeeId, Integer limit) {
+        int pageSize = resolveHistoryLimit(limit);
+        PageRequest pageable = PageRequest.of(0, pageSize);
+
+        if (employeeId != null) {
+            ensureEmployeeExists(employeeId);
+            return relocationLogRepository.findByEmployeeIdOrderByScheduledAtDesc(employeeId, pageable).stream()
+                    .map(workforceMapper::toRelocationLogResponse)
+                    .toList();
+        }
+
+        return relocationLogRepository.findAllByOrderByScheduledAtDesc(pageable).stream()
+                .map(workforceMapper::toRelocationLogResponse)
+                .toList();
+    }
+
+    public RelocationLogResponse findRelocationLogById(Long id) {
+        return relocationLogRepository.findById(id)
+                .map(workforceMapper::toRelocationLogResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Relocation log not found"));
+    }
+
+    public List<RelocationLogResponse> findEmployeeRelocationHistory(Long employeeId, Integer limit) {
+        ensureEmployeeExists(employeeId);
+        return findRelocationHistory(employeeId, limit);
+    }
+
+    private void ensureEmployeeExists(Long employeeId) {
+        if (!employeeRepository.existsById(employeeId)) {
+            throw new ResourceNotFoundException("Employee not found");
+        }
+    }
+
+    private int resolveHistoryLimit(Integer limit) {
+        if (limit == null) {
+            return 50;
+        }
+        if (limit < 1) {
+            throw new InvalidRequestException("limit must be at least 1");
+        }
+        return Math.min(limit, 200);
     }
 
     private DepartmentName parseDepartmentName(String name) {

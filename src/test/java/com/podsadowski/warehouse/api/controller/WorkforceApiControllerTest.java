@@ -2,12 +2,14 @@ package com.podsadowski.warehouse.api.controller;
 
 import com.podsadowski.warehouse.api.dto.EmployeeResponse;
 import com.podsadowski.warehouse.api.dto.OverviewResponse;
+import com.podsadowski.warehouse.api.dto.RelocationLogResponse;
 import com.podsadowski.warehouse.api.dto.RelocationStatus;
 import com.podsadowski.warehouse.api.exception.GlobalExceptionHandler;
 import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
 import com.podsadowski.warehouse.api.service.WorkforceReadService;
 import com.podsadowski.warehouse.domain.entity.BreakTier;
 import com.podsadowski.warehouse.domain.entity.DepartmentName;
+import com.podsadowski.warehouse.domain.entity.RelocationLogStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -80,6 +82,38 @@ class WorkforceApiControllerTest {
                 .andExpect(jsonPath("$.totalEmployees").value(40));
     }
 
+    @Test
+    void getRelocationHistory_returnsList() throws Exception {
+        when(workforceReadService.findRelocationHistory(null, null)).thenReturn(List.of(sampleRelocationLog()));
+
+        mockMvc.perform(get("/api/v1/relocations/history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(10))
+                .andExpect(jsonPath("$[0].fromDepartment").value("PICKING"))
+                .andExpect(jsonPath("$[0].toDepartment").value("PUTAWAY"))
+                .andExpect(jsonPath("$[0].status").value("COMPLETED"));
+    }
+
+    @Test
+    void getRelocationHistoryById_notFound_returns404() throws Exception {
+        when(workforceReadService.findRelocationLogById(99L))
+                .thenThrow(new ResourceNotFoundException("Relocation log not found"));
+
+        mockMvc.perform(get("/api/v1/relocations/history/99"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("Relocation log not found"));
+    }
+
+    @Test
+    void getEmployeeRelocations_returnsList() throws Exception {
+        when(workforceReadService.findEmployeeRelocationHistory(5L, null))
+                .thenReturn(List.of(sampleRelocationLog()));
+
+        mockMvc.perform(get("/api/v1/employees/5/relocations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].employeeId").value(5));
+    }
+
     private EmployeeResponse sampleEmployee() {
         return new EmployeeResponse(
                 5L,
@@ -95,6 +129,22 @@ class WorkforceApiControllerTest {
                 LocalDateTime.of(2026, 7, 14, 8, 30),
                 1,
                 0
+        );
+    }
+
+    private RelocationLogResponse sampleRelocationLog() {
+        return new RelocationLogResponse(
+                10L,
+                5L,
+                DepartmentName.PICKING,
+                DepartmentName.PUTAWAY,
+                RelocationLogStatus.COMPLETED,
+                LocalDateTime.of(2026, 7, 14, 8, 0),
+                LocalDateTime.of(2026, 7, 14, 8, 10),
+                LocalDateTime.of(2026, 7, 14, 8, 25),
+                82.3,
+                38.7,
+                38.7
         );
     }
 }
