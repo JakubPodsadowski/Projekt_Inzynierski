@@ -8,6 +8,7 @@ import com.podsadowski.warehouse.domain.entity.RelocationLogStatus;
 import com.podsadowski.warehouse.domain.repository.DepartmentRepository;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
 import com.podsadowski.warehouse.domain.repository.RelocationLogRepository;
+import com.podsadowski.warehouse.notification.NotificationService;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ public class RelocationEngine {
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
     private final RelocationLogRepository relocationLogRepository;
+    private final NotificationService notificationService;
     private final Clock clock;
     private final EmployeePerformanceService employeePerformanceService;
     private final WarehouseProperties warehouseProperties;
@@ -249,6 +251,13 @@ public class RelocationEngine {
         relocationLog.setIphAtSource(candidate.lossAtGiver());
         relocationLog.setPredictedIphAtTarget(candidate.gainAtRecipient());
         relocationLogRepository.save(relocationLog);
+
+        notificationService.notifyRelocationScheduled(
+                employee.getId(),
+                relocationLog.getId(),
+                candidate.giver().getName(),
+                recipient.getName()
+        );
 
         log.info(
                 "Scheduled weakest eligible employee {} from {} (deficit {}) to {} (deficit {}). "

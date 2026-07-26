@@ -7,6 +7,7 @@ import com.podsadowski.warehouse.domain.entity.RelocationLog;
 import com.podsadowski.warehouse.domain.entity.RelocationLogStatus;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
 import com.podsadowski.warehouse.domain.repository.RelocationLogRepository;
+import com.podsadowski.warehouse.notification.NotificationService;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class RelocationFulfillmentService {
 
     private final EmployeeRepository employeeRepository;
     private final RelocationLogRepository relocationLogRepository;
+    private final NotificationService notificationService;
     private final EmployeePerformanceService employeePerformanceService;
     private final WarehouseProperties warehouseProperties;
 
@@ -60,7 +62,15 @@ public class RelocationFulfillmentService {
     private void startTransit(Employee employee, LocalDateTime now) {
         long travelMinutes = warehouseProperties.getRelocation().getTravelMinutes();
         employee.setRelocatingUntil(now.plusMinutes(travelMinutes));
-        markLogInTransit(employee.getId(), now);
+        RelocationLog relocationLog = markLogInTransit(employee.getId(), now);
+        if (relocationLog != null) {
+            notificationService.notifyRelocationInTransit(
+                    employee.getId(),
+                    relocationLog.getId(),
+                    relocationLog.getFromDepartment(),
+                    relocationLog.getToDepartment()
+            );
+        }
         log.info("Employee {} walking to {} ({} min)",
                 employee.getId(),
                 employee.getTargetDepartment().getName(),
@@ -74,7 +84,15 @@ public class RelocationFulfillmentService {
         double predictedIph = employeePerformanceService.predictIphAtDepartment(
                 employee, target.getName(), now);
 
-        markLogCompleted(employee.getId(), now, predictedIph);
+        RelocationLog relocationLog = markLogCompleted(employee.getId(), now, predictedIph);
+        if (relocationLog != null) {
+            notificationService.notifyRelocationArrived(
+                    employee.getId(),
+                    relocationLog.getId(),
+                    relocationLog.getFromDepartment(),
+                    relocationLog.getToDepartment()
+            );
+        }
 
         employee.setCurrentDepartment(target);
         employee.setTargetDepartment(null);
@@ -90,27 +108,31 @@ public class RelocationFulfillmentService {
                 String.format("%.1f", employee.getCurrentIph()));
     }
 
-    private void markLogInTransit(Long employeeId, LocalDateTime now) {
-        relocationLogRepository.findByEmployeeIdAndArrivedAtIsNull(employeeId).ifPresentOrElse(
-                relocationLog -> {
+    private RelocationLog markLogInTransit(Long employeeId, LocalDateTime now) {
+        return relocationLogRepository.findByEmployeeIdAndArrivedAtIsNull(employeeId)
+                .map(relocationLog -> {
                     relocationLog.setStatus(RelocationLogStatus.IN_TRANSIT);
                     relocationLog.setTransitStartedAt(now);
-                    relocationLogRepository.save(relocationLog);
-                },
-                () -> log.warn("No open relocation log for employee {} when starting transit", employeeId)
-        );
+                    return relocationLogRepository.save(relocationLog);
+                })
+                .orElseGet(() -> {
+                    log.warn("No open relocation log for employee {} when starting transit", employeeId);
+                    return null;
+                });
     }
 
-    private void markLogCompleted(Long employeeId, LocalDateTime now, double iphOnArrival) {
-        relocationLogRepository.findByEmployeeIdAndArrivedAtIsNull(employeeId).ifPresentOrElse(
-                relocationLog -> {
+    private RelocationLog markLogCompleted(Long employeeId, LocalDateTime now, double iphOnArrival) {
+        return relocationLogRepository.findByEmployeeIdAndArrivedAtIsNull(employeeId)
+                .map(relocationLog -> {
                     relocationLog.setStatus(RelocationLogStatus.COMPLETED);
                     relocationLog.setArrivedAt(now);
                     relocationLog.setIphOnArrival(iphOnArrival);
-                    relocationLogRepository.save(relocationLog);
-                },
-                () -> log.warn("No open relocation log for employee {} when completing relocation", employeeId)
-        );
+                    return relocationLogRepository.save(relocationLog);
+                })
+                .orElseGet(() -> {
+                    log.warn("No open relocation log for employee {} when completing relocation", employeeId);
+                    return null;
+                });
     }
 
     public int randomOrderSize() {
