@@ -61,7 +61,12 @@ public class EmployeeSimulationTask implements Runnable {
                     continue;
                 }
 
+                // Leave order empty while a relocation is pending so the tick can start transit.
                 if (!employee.hasActiveOrder()) {
+                    if (employee.hasPendingRelocation()) {
+                        Thread.sleep(simulation.getBreakPollMs());
+                        continue;
+                    }
                     employee.setOrderItemsRemaining(relocationFulfillmentService.randomOrderSize());
                     employeeRepository.save(employee);
                 }

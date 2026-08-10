@@ -50,6 +50,8 @@ class WorkforceApiControllerTest {
         mockMvc.perform(get("/api/v1/employees"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(5))
+                .andExpect(jsonPath("$[0].currentDepartmentId").value(1))
+                .andExpect(jsonPath("$[0].targetDepartmentId").value(2))
                 .andExpect(jsonPath("$[0].relocationStatus").value("SCHEDULED"));
     }
 
@@ -127,11 +129,13 @@ class WorkforceApiControllerTest {
                 5L,
                 "Jan",
                 "Kowalski",
+                1L,
                 DepartmentName.PICKING,
                 82.3,
                 BreakTier.FIRST_SHIFT,
                 false,
                 RelocationStatus.SCHEDULED,
+                2L,
                 DepartmentName.PUTAWAY,
                 null,
                 LocalDateTime.of(2026, 7, 14, 8, 30),

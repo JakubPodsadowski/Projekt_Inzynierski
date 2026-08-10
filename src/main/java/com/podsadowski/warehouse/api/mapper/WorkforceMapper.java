@@ -34,8 +34,14 @@ public class WorkforceMapper {
     }
 
     public EmployeeResponse toEmployeeResponse(Employee employee, LocalDateTime now) {
+        Long currentDepartmentId = employee.getCurrentDepartment() != null
+                ? employee.getCurrentDepartment().getId()
+                : null;
         DepartmentName currentDepartment = employee.getCurrentDepartment() != null
                 ? employee.getCurrentDepartment().getName()
+                : null;
+        Long targetDepartmentId = employee.getTargetDepartment() != null
+                ? employee.getTargetDepartment().getId()
                 : null;
         DepartmentName targetDepartment = employee.getTargetDepartment() != null
                 ? employee.getTargetDepartment().getName()
@@ -45,11 +51,13 @@ public class WorkforceMapper {
                 employee.getId(),
                 employee.getFirstName(),
                 employee.getLastName(),
+                currentDepartmentId,
                 currentDepartment,
                 employee.getCurrentIph(),
                 employee.getBreakTier(),
                 employee.isOnBreak(),
                 resolveRelocationStatus(employee, now),
+                targetDepartmentId,
                 targetDepartment,
                 employee.getRelocatingUntil(),
                 employee.getLastRelocatedAt(),
