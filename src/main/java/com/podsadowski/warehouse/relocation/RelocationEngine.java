@@ -1,5 +1,7 @@
 package com.podsadowski.warehouse.relocation;
 
+import com.podsadowski.warehouse.api.exception.InvalidRequestException;
+import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
 import com.podsadowski.warehouse.config.WarehouseProperties;
 import com.podsadowski.warehouse.domain.entity.Department;
 import com.podsadowski.warehouse.domain.entity.Employee;
@@ -13,6 +15,7 @@ import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -39,7 +42,7 @@ public class RelocationEngine {
     private final EmployeePerformanceService employeePerformanceService;
     private final WarehouseProperties warehouseProperties;
 
-    public void checkAndBalanceWorkforce() {
+    public int checkAndBalanceWorkforce() {
         WarehouseProperties.Relocation config = warehouseProperties.getRelocation();
         LocalDateTime now = LocalDateTime.now(clock);
 
@@ -48,7 +51,7 @@ public class RelocationEngine {
 
         if (isBalanced(departments, config)) {
             log.debug("All departments at or above capacity, no relocation needed");
-            return;
+            return 0;
         }
 
         int scheduled = 0;
@@ -71,6 +74,50 @@ public class RelocationEngine {
         if (scheduled > 0) {
             log.info("Scheduled {} relocation(s) to execute after order completion", scheduled);
         }
+        return scheduled;
+    }
+
+    /**
+     * Admin force-schedule: skips cooldown, daily limit, and on-break checks.
+     * Still rejects missing entities, open relocations, and same-department targets.
+     */
+    @Transactional
+    public RelocationLog forceSchedule(Long employeeId, Long toDepartmentId) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+        Department recipient = departmentRepository.findById(toDepartmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found"));
+
+        if (employee.hasPendingRelocation()) {
+            throw new InvalidRequestException("Employee already has an open relocation");
+        }
+        Department giver = employee.getCurrentDepartment();
+        if (giver == null) {
+            throw new InvalidRequestException("Employee has no current department");
+        }
+        if (giver.getId().equals(recipient.getId())) {
+            throw new InvalidRequestException("Employee is already in the target department");
+        }
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        double lossAtGiver = employee.getCurrentIph();
+        double gainAtRecipient = employeePerformanceService.predictIphAtDepartment(
+                employee, recipient.getName(), now);
+
+        RelocationLog relocationLog = scheduleRelocation(new RelocationCandidate(
+                employee,
+                giver,
+                recipient,
+                lossAtGiver,
+                gainAtRecipient,
+                1,
+                gainAtRecipient,
+                calculateDeficit(recipient)
+        ));
+
+        log.info("Force-scheduled employee {} from {} to {}",
+                employee.getId(), giver.getName(), recipient.getName());
+        return relocationLog;
     }
 
     private boolean isBalanced(List<Department> departments, WarehouseProperties.Relocation config) {
@@ -234,7 +281,7 @@ public class RelocationEngine {
         );
     }
 
-    private void scheduleRelocation(RelocationCandidate candidate) {
+    private RelocationLog scheduleRelocation(RelocationCandidate candidate) {
         Employee employee = candidate.employee();
         Department recipient = candidate.recipient();
         LocalDateTime now = LocalDateTime.now(clock);
@@ -272,6 +319,8 @@ public class RelocationEngine {
                 String.format("%.1f", candidate.lossAtGiver()),
                 String.format("%.1f", candidate.gainAtRecipient()),
                 employee.getOrderItemsRemaining());
+
+        return relocationLog;
     }
 
     private void logDeficits(List<Department> departments) {

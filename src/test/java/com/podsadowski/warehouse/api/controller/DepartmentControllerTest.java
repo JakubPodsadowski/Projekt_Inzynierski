@@ -5,6 +5,7 @@ import com.podsadowski.warehouse.api.exception.GlobalExceptionHandler;
 import com.podsadowski.warehouse.api.exception.InvalidRequestException;
 import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
 import com.podsadowski.warehouse.api.service.WorkforceReadService;
+import com.podsadowski.warehouse.api.service.WorkforceWriteService;
 import com.podsadowski.warehouse.domain.entity.DepartmentName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +30,9 @@ class DepartmentControllerTest {
 
     @MockitoBean
     private WorkforceReadService workforceReadService;
+
+    @MockitoBean
+    private WorkforceWriteService workforceWriteService;
 
     @Test
     void getDepartments_returnsList() throws Exception {

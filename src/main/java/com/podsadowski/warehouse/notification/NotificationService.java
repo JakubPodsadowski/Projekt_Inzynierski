@@ -86,6 +86,25 @@ public class NotificationService {
         );
     }
 
+    @Transactional
+    public NotificationResponse notifyRelocationCancelled(
+            Long employeeId,
+            Long relocationLogId,
+            DepartmentName fromDepartment,
+            DepartmentName toDepartment
+    ) {
+        String message = "Relocation cancelled: %s → %s."
+                .formatted(fromDepartment, toDepartment);
+        return createAndPublish(
+                employeeId,
+                NotificationType.RELOCATION_CANCELLED,
+                message,
+                relocationLogId,
+                fromDepartment,
+                toDepartment
+        );
+    }
+
     private NotificationResponse createAndPublish(
             Long employeeId,
             NotificationType type,

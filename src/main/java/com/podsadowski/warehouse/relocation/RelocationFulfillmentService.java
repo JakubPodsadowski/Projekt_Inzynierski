@@ -1,5 +1,7 @@
 package com.podsadowski.warehouse.relocation;
 
+import com.podsadowski.warehouse.api.exception.InvalidRequestException;
+import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
 import com.podsadowski.warehouse.config.WarehouseProperties;
 import com.podsadowski.warehouse.domain.entity.Department;
 import com.podsadowski.warehouse.domain.entity.Employee;
@@ -15,7 +17,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -26,6 +31,11 @@ import java.util.concurrent.ThreadLocalRandom;
 @RequiredArgsConstructor
 @Slf4j
 public class RelocationFulfillmentService {
+
+    private static final Set<RelocationLogStatus> OPEN_STATUSES = EnumSet.of(
+            RelocationLogStatus.SCHEDULED,
+            RelocationLogStatus.IN_TRANSIT
+    );
 
     private final EmployeeRepository employeeRepository;
     private final RelocationLogRepository relocationLogRepository;
@@ -57,6 +67,37 @@ public class RelocationFulfillmentService {
         }
 
         employeeRepository.saveAll(employees);
+    }
+
+    @Transactional
+    public RelocationLog cancelOpenRelocation(Long relocationLogId) {
+        RelocationLog relocationLog = relocationLogRepository.findById(relocationLogId)
+                .orElseThrow(() -> new ResourceNotFoundException("Relocation log not found"));
+
+        if (!OPEN_STATUSES.contains(relocationLog.getStatus())) {
+            throw new InvalidRequestException(
+                    "Only SCHEDULED or IN_TRANSIT relocations can be cancelled");
+        }
+
+        Employee employee = employeeRepository.findById(relocationLog.getEmployeeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
+        employee.setTargetDepartment(null);
+        employee.setRelocatingUntil(null);
+        employeeRepository.save(employee);
+
+        relocationLog.setStatus(RelocationLogStatus.CANCELLED);
+        RelocationLog saved = relocationLogRepository.save(relocationLog);
+
+        notificationService.notifyRelocationCancelled(
+                employee.getId(),
+                saved.getId(),
+                saved.getFromDepartment(),
+                saved.getToDepartment()
+        );
+
+        log.info("Cancelled relocation {} for employee {}", saved.getId(), employee.getId());
+        return saved;
     }
 
     private void startTransit(Employee employee, LocalDateTime now) {
@@ -109,7 +150,7 @@ public class RelocationFulfillmentService {
     }
 
     private RelocationLog markLogInTransit(Long employeeId, LocalDateTime now) {
-        return relocationLogRepository.findByEmployeeIdAndArrivedAtIsNull(employeeId)
+        return findOpenLog(employeeId)
                 .map(relocationLog -> {
                     relocationLog.setStatus(RelocationLogStatus.IN_TRANSIT);
                     relocationLog.setTransitStartedAt(now);
@@ -122,7 +163,7 @@ public class RelocationFulfillmentService {
     }
 
     private RelocationLog markLogCompleted(Long employeeId, LocalDateTime now, double iphOnArrival) {
-        return relocationLogRepository.findByEmployeeIdAndArrivedAtIsNull(employeeId)
+        return findOpenLog(employeeId)
                 .map(relocationLog -> {
                     relocationLog.setStatus(RelocationLogStatus.COMPLETED);
                     relocationLog.setArrivedAt(now);
@@ -133,6 +174,11 @@ public class RelocationFulfillmentService {
                     log.warn("No open relocation log for employee {} when completing relocation", employeeId);
                     return null;
                 });
+    }
+
+    private Optional<RelocationLog> findOpenLog(Long employeeId) {
+        return relocationLogRepository.findFirstByEmployeeIdAndStatusInOrderByScheduledAtDesc(
+                employeeId, OPEN_STATUSES);
     }
 
     public int randomOrderSize() {

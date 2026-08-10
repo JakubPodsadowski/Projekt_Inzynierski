@@ -1,10 +1,14 @@
 package com.podsadowski.warehouse.api.controller;
 
 import com.podsadowski.warehouse.api.dto.DepartmentResponse;
+import com.podsadowski.warehouse.api.dto.UpdateDepartmentRequest;
 import com.podsadowski.warehouse.api.service.WorkforceReadService;
+import com.podsadowski.warehouse.api.service.WorkforceWriteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,6 +21,7 @@ import java.util.List;
 public class DepartmentController {
 
     private final WorkforceReadService workforceReadService;
+    private final WorkforceWriteService workforceWriteService;
 
     @GetMapping
     public List<DepartmentResponse> getDepartments(
@@ -33,5 +38,13 @@ public class DepartmentController {
     @GetMapping("/by-name/{name}")
     public DepartmentResponse getDepartmentByName(@PathVariable String name) {
         return workforceReadService.findDepartmentByName(name);
+    }
+
+    @PatchMapping("/{id}")
+    public DepartmentResponse updateDepartment(
+            @PathVariable Long id,
+            @RequestBody UpdateDepartmentRequest request
+    ) {
+        return workforceWriteService.updateDepartment(id, request);
     }
 }

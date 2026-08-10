@@ -6,7 +6,9 @@ import com.podsadowski.warehouse.api.dto.RelocationLogResponse;
 import com.podsadowski.warehouse.api.dto.RelocationStatus;
 import com.podsadowski.warehouse.api.exception.GlobalExceptionHandler;
 import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
+import com.podsadowski.warehouse.api.service.RelocationWriteService;
 import com.podsadowski.warehouse.api.service.WorkforceReadService;
+import com.podsadowski.warehouse.api.service.WorkforceWriteService;
 import com.podsadowski.warehouse.domain.entity.BreakTier;
 import com.podsadowski.warehouse.domain.entity.DepartmentName;
 import com.podsadowski.warehouse.domain.entity.RelocationLogStatus;
@@ -34,6 +36,12 @@ class WorkforceApiControllerTest {
 
     @MockitoBean
     private WorkforceReadService workforceReadService;
+
+    @MockitoBean
+    private WorkforceWriteService workforceWriteService;
+
+    @MockitoBean
+    private RelocationWriteService relocationWriteService;
 
     @Test
     void getEmployees_returnsList() throws Exception {
