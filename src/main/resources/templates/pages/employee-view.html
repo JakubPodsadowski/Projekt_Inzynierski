@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/main :: layout(~{::section})}">
+<head>
+    <title>Employee</title>
+</head>
+<body>
+<section>
+    <div class="card">
+        <div class="card-body">
+            <p class="text-muted mb-0">
+                Employee detail and notifications
+                <span th:text="'(ID ' + ${employeeId} + ')'">(ID)</span>
+                — coming in the next step.
+            </p>
+        </div>
+    </div>
+</section>
+</body>
+</html>
