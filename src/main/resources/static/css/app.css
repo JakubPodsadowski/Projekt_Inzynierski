@@ -20,3 +20,8 @@
     font-size: 0.75rem;
     font-weight: 600;
 }
+
+#mode-toggle-wrapper .custom-control-label {
+    cursor: pointer;
+    user-select: none;
+}

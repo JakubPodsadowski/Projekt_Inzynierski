@@ -16,13 +16,15 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Component
 @Profile("demo")
 @Slf4j
 @RequiredArgsConstructor
-public class SimulationManager {
+public class SimulationManager implements SimulationControl {
 
     private final EmployeeRepository employeeRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
@@ -33,28 +35,71 @@ public class SimulationManager {
     private final RelocationFulfillmentService relocationFulfillmentService;
     private final WarehouseProperties warehouseProperties;
 
-    @EventListener(ApplicationReadyEvent.class)
-    public void startSimulation() {
-        var executor = Executors.newVirtualThreadPerTaskExecutor();
+    private ExecutorService executor;
+    private volatile boolean simulationRunning;
 
+    @EventListener(ApplicationReadyEvent.class)
+    public void onApplicationReady() {
+        startSimulation();
+    }
+
+    @Override
+    public synchronized void startSimulation() {
+        if (simulationRunning) {
+            return;
+        }
+
+        executor = Executors.newVirtualThreadPerTaskExecutor();
         List<Employee> employees = employeeRepository.findAll();
 
         for (Employee employee : employees) {
-            EmployeeSimulationTask task = new EmployeeSimulationTask(
-                    employee.getId(),
-                    employeeRepository,
-                    kafkaTemplate,
-                    objectMapper,
-                    clock,
-                    simulationTimeService,
-                    employeePerformanceService,
-                    relocationFulfillmentService,
-                    warehouseProperties
-            );
-
-            executor.submit(task);
+            submitTask(employee.getId());
         }
 
+        simulationRunning = true;
         log.info("Started simulation for {} employees", employees.size());
+    }
+
+    @Override
+    public synchronized void stopSimulation() {
+        if (!simulationRunning) {
+            return;
+        }
+
+        if (executor != null) {
+            executor.shutdownNow();
+            try {
+                if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    log.warn("Simulation executor did not terminate within timeout");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Interrupted while waiting for simulation shutdown");
+            }
+            executor = null;
+        }
+
+        simulationRunning = false;
+        log.info("Stopped employee simulation");
+    }
+
+    @Override
+    public boolean isSimulationRunning() {
+        return simulationRunning;
+    }
+
+    private void submitTask(Long employeeId) {
+        EmployeeSimulationTask task = new EmployeeSimulationTask(
+                employeeId,
+                employeeRepository,
+                kafkaTemplate,
+                objectMapper,
+                clock,
+                simulationTimeService,
+                employeePerformanceService,
+                relocationFulfillmentService,
+                warehouseProperties
+        );
+        executor.submit(task);
     }
 }
