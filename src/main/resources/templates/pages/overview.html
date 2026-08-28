@@ -5,12 +5,108 @@
     <title>Overview</title>
 </head>
 <body>
-<section>
-    <div class="card">
-        <div class="card-body">
-            <p class="text-muted mb-0">Workforce overview dashboard — coming in the next step.</p>
+<section id="overview-dashboard">
+    <div class="row mb-3">
+        <div class="col-12">
+            <small class="text-muted">
+                Last updated: <span id="overview-timestamp">—</span>
+                <span class="ml-2" id="overview-loading">
+                    <i class="fas fa-sync-alt fa-spin"></i> Refreshing…
+                </span>
+            </small>
         </div>
     </div>
+
+    <div class="row">
+        <div class="col-lg-3 col-6">
+            <div class="small-box bg-warning">
+                <div class="inner">
+                    <h3 id="kpi-imbalance">—</h3>
+                    <p>Deficit imbalance</p>
+                </div>
+                <div class="icon"><i class="fas fa-balance-scale"></i></div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-6">
+            <div class="small-box bg-info">
+                <div class="inner">
+                    <h3 id="kpi-pending">—</h3>
+                    <p>Pending relocations</p>
+                </div>
+                <div class="icon"><i class="fas fa-clock"></i></div>
+                <a th:href="@{/relocations}" class="small-box-footer">
+                    View relocations <i class="fas fa-arrow-circle-right"></i>
+                </a>
+            </div>
+        </div>
+        <div class="col-lg-3 col-6">
+            <div class="small-box bg-primary">
+                <div class="inner">
+                    <h3 id="kpi-in-transit">—</h3>
+                    <p>In transit</p>
+                </div>
+                <div class="icon"><i class="fas fa-walking"></i></div>
+                <a th:href="@{/relocations}" class="small-box-footer">
+                    View relocations <i class="fas fa-arrow-circle-right"></i>
+                </a>
+            </div>
+        </div>
+        <div class="col-lg-3 col-6">
+            <div class="small-box bg-secondary">
+                <div class="inner">
+                    <h3 id="kpi-on-break">—</h3>
+                    <p>On break</p>
+                </div>
+                <div class="icon"><i class="fas fa-coffee"></i></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-3 col-6">
+            <div class="small-box bg-success">
+                <div class="inner">
+                    <h3 id="kpi-total-employees">—</h3>
+                    <p>Total employees</p>
+                </div>
+                <div class="icon"><i class="fas fa-users"></i></div>
+                <a th:href="@{/employees}" class="small-box-footer">
+                    View employees <i class="fas fa-arrow-circle-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Departments by deficit</h3>
+            <div class="card-tools">
+                <a th:href="@{/departments}" class="btn btn-tool btn-sm">
+                    <i class="fas fa-external-link-alt"></i> Manage
+                </a>
+            </div>
+        </div>
+        <div class="card-body table-responsive p-0">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                <tr>
+                    <th>Department</th>
+                    <th class="text-right">Current IPH</th>
+                    <th class="text-right">Required IPH</th>
+                    <th class="text-right">Deficit</th>
+                    <th class="text-right">Staff</th>
+                </tr>
+                </thead>
+                <tbody id="overview-departments-body">
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">Loading…</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script th:src="@{/js/overview.js}"></script>
 </section>
 </body>
 </html>

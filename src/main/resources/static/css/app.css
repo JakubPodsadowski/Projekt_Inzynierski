@@ -2,6 +2,14 @@
     min-height: calc(100vh - 57px);
 }
 
+.small-box .inner h3 {
+    font-size: 2rem;
+}
+
+#overview-loading {
+    font-size: 0.85rem;
+}
+
 .brand-link {
     display: flex;
     align-items: center;
