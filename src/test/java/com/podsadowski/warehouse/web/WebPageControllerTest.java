@@ -29,7 +29,8 @@ class WebPageControllerTest {
     void departments_returnsPage() throws Exception {
         mockMvc.perform(get("/departments"))
                 .andExpect(status().isOk())
-                .andExpect(view().name("pages/departments"));
+                .andExpect(view().name("pages/departments"))
+                .andExpect(content().string(containsString("departments-page")));
     }
 
     @Test

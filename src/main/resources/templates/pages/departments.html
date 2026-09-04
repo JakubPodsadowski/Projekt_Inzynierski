@@ -5,20 +5,114 @@
     <title>Departments</title>
 </head>
 <body>
-<section>
+<section id="departments-page">
     <div class="card mb-3 d-none" data-demo-only>
         <div class="card-header bg-warning">
-            <h3 class="card-title mb-0">Demo controls</h3>
+            <h3 class="card-title mb-0"><i class="fas fa-bolt mr-1"></i> Demo sabotage</h3>
         </div>
         <div class="card-body">
-            <p class="text-muted mb-0">Department sabotage tools will appear here in demo mode.</p>
+            <p class="text-muted small">Quickly stress a department to trigger relocations. Changes apply via PATCH.</p>
+            <div class="form-row align-items-end">
+                <div class="form-group col-md-4">
+                    <label for="demo-dept-select">Department</label>
+                    <select class="form-control form-control-sm" id="demo-dept-select">
+                        <option value="">— select —</option>
+                    </select>
+                </div>
+                <div class="form-group col-md-3">
+                    <label for="demo-bump-amount">Bump required IPH by</label>
+                    <input type="number" class="form-control form-control-sm" id="demo-bump-amount"
+                           value="50" min="1" step="1"/>
+                </div>
+                <div class="form-group col-md-2">
+                    <button type="button" class="btn btn-warning btn-sm btn-block" id="demo-bump-btn">
+                        Apply bump
+                    </button>
+                </div>
+                <div class="form-group col-md-3">
+                    <label for="demo-target-deficit">Set deficit to</label>
+                    <div class="input-group input-group-sm">
+                        <input type="number" class="form-control" id="demo-target-deficit"
+                               value="100" step="1"/>
+                        <div class="input-group-append">
+                            <button type="button" class="btn btn-outline-warning" id="demo-deficit-btn">
+                                Set
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+
     <div class="card">
-        <div class="card-body">
-            <p class="text-muted mb-0">Department list and targets — coming in the next step.</p>
+        <div class="card-header">
+            <h3 class="card-title">Departments</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-tool" id="departments-refresh-btn" title="Refresh">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body table-responsive p-0">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                <tr>
+                    <th>Department</th>
+                    <th class="text-right">Current IPH</th>
+                    <th class="text-right">Required IPH</th>
+                    <th class="text-right">Multiplier</th>
+                    <th class="text-right">Deficit</th>
+                    <th class="text-right">Target items/day</th>
+                    <th class="text-right">Staff</th>
+                    <th class="text-right">Actions</th>
+                </tr>
+                </thead>
+                <tbody id="departments-table-body">
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">Loading…</td>
+                </tr>
+                </tbody>
+            </table>
         </div>
     </div>
+
+    <div class="modal fade" id="dept-edit-modal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit department <span id="dept-edit-name"></span></h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="dept-edit-id"/>
+                    <div class="form-group">
+                        <label for="dept-edit-required-iph">Required IPH</label>
+                        <input type="number" class="form-control" id="dept-edit-required-iph"
+                               min="0" step="0.1"/>
+                    </div>
+                    <div class="form-group">
+                        <label for="dept-edit-target-items">Target daily items</label>
+                        <input type="number" class="form-control" id="dept-edit-target-items"
+                               min="0" step="1"/>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="dept-edit-multiplier">Performance multiplier</label>
+                        <input type="number" class="form-control" id="dept-edit-multiplier"
+                               min="0.01" step="0.01"/>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="dept-edit-save-btn">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/departments.js}"></script>
 </section>
 </body>
 </html>

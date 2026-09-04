@@ -1,6 +1,7 @@
 package com.podsadowski.warehouse.api.controller;
 
 import com.podsadowski.warehouse.api.dto.DepartmentResponse;
+import com.podsadowski.warehouse.api.dto.UpdateDepartmentRequest;
 import com.podsadowski.warehouse.api.exception.GlobalExceptionHandler;
 import com.podsadowski.warehouse.api.exception.InvalidRequestException;
 import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
@@ -16,8 +17,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -76,5 +81,23 @@ class DepartmentControllerTest {
         mockMvc.perform(get("/api/v1/departments/by-name/INVALID"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Invalid department name: INVALID"));
+    }
+
+    @Test
+    void updateDepartment_returnsUpdated() throws Exception {
+        when(workforceWriteService.updateDepartment(eq(1L), any(UpdateDepartmentRequest.class)))
+                .thenReturn(new DepartmentResponse(1L, DepartmentName.PICKING, 300, 450, 1.1, 120, 1200, 10));
+
+        mockMvc.perform(patch("/api/v1/departments/1")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "requiredIph": 450,
+                                  "performanceMultiplier": 1.1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requiredIph").value(450))
+                .andExpect(jsonPath("$.performanceMultiplier").value(1.1));
     }
 }
