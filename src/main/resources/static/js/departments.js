@@ -3,6 +3,11 @@
  */
 (function () {
     let departments = [];
+    let requestSeq = 0;
+
+    function isDemoMode() {
+        return document.body.classList.contains('mode-demo');
+    }
 
     function formatNumber(value, decimals) {
         if (value == null || Number.isNaN(value)) {
@@ -87,7 +92,22 @@
     }
 
     async function loadDepartments() {
-        departments = await WarehouseApi.get('/departments?sort=deficit,desc');
+        if (!isDemoMode()) {
+            departments = [];
+            renderTable();
+            renderDemoSelect();
+            return;
+        }
+
+        const seq = ++requestSeq;
+        const data = await WarehouseApi.get('/departments?sort=deficit,desc');
+        if (seq !== requestSeq || !isDemoMode()) {
+            departments = [];
+            renderTable();
+            renderDemoSelect();
+            return;
+        }
+        departments = data;
         renderTable();
         renderDemoSelect();
     }
@@ -206,6 +226,11 @@
 
         bindEvents();
         loadDepartments().catch(function () { /* toast shown */ });
+
+        window.addEventListener('warehouse:mode', function () {
+            requestSeq++;
+            loadDepartments().catch(function () { /* toast shown */ });
+        });
     }
 
     document.addEventListener('DOMContentLoaded', init);

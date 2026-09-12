@@ -1,29 +1,13 @@
-spring:
-  kafka:
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-    consumer:
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      auto-offset-reset: earliest
-      properties:
-        spring.json.trusted.packages: "com.podsadowski.warehouse.domain.dto"
-
-logging:
-  level:
-    org.apache.kafka: warn
-    org.springframework.kafka: warn
-    com.podsadowski.warehouse.kafka: warn
-
 warehouse:
   scheduler:
-    tick-interval-ms: 2000
+    tick-interval-ms: 1000
   simulation:
-    tick-interval-ms: 2000
-    simulated-minutes-per-tick: 120
+    tick-interval-ms: 1000
+    simulated-minutes-per-tick: 1
     start-time: "06:00"
-    break-poll-ms: 1000
+    break-poll-ms: 500
+    work-interval-seconds-min: 45
+    work-interval-seconds-max: 90
     throughput-random-min: 0.85
     throughput-random-max: 1.15
   breaks:
@@ -41,3 +25,21 @@ warehouse:
     top-performer-sample-size: 3
   seeding:
     employee-count: 40
+
+spring:
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: "com.podsadowski.warehouse.domain.dto"
+
+logging:
+  level:
+    org.apache.kafka: warn
+    org.springframework.kafka: warn
+    com.podsadowski.warehouse.kafka: warn

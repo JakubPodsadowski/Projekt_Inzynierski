@@ -22,7 +22,8 @@ class WebPageControllerTest {
         mockMvc.perform(get("/"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("pages/overview"))
-                .andExpect(content().string(containsString("overview-dashboard")));
+                .andExpect(content().string(containsString("overview-dashboard")))
+                .andExpect(content().string(containsString("simulation-panel")));
     }
 
     @Test

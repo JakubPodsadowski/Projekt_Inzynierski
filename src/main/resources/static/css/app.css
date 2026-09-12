@@ -33,3 +33,16 @@
     cursor: pointer;
     user-select: none;
 }
+
+.simulation-control-bar {
+    font-size: 0.9rem;
+}
+
+.simulation-control-bar #sim-clock {
+    font-variant-numeric: tabular-nums;
+    font-family: Consolas, Monaco, monospace;
+}
+
+.simulation-control-bar .custom-range {
+    width: 160px;
+}

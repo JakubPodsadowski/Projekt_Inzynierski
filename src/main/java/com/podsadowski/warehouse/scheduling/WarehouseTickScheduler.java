@@ -7,6 +7,7 @@ import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import com.podsadowski.warehouse.performance.IphCalculationService;
 import com.podsadowski.warehouse.relocation.RelocationEngine;
 import com.podsadowski.warehouse.relocation.RelocationFulfillmentService;
+import com.podsadowski.warehouse.simulation.SimulationRuntimeState;
 import com.podsadowski.warehouse.simulation.SimulationTimeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,12 +35,17 @@ public class WarehouseTickScheduler {
     private final EmployeePerformanceService employeePerformanceService;
     private final IphCalculationService iphCalculationService;
     private final SimulationTimeService simulationTimeService;
+    private final SimulationRuntimeState simulationRuntimeState;
     private final EmployeeRepository employeeRepository;
 
     private LocalDate lastProcessedDate;
 
     @Scheduled(fixedRateString = "${warehouse.scheduler.tick-interval-ms}")
     public void runTick() {
+        if (simulationRuntimeState.isPaused()) {
+            return;
+        }
+
         advanceSimulatedClock();
 
         LocalDateTime currentTime = LocalDateTime.now(clock);
@@ -55,7 +61,7 @@ public class WarehouseTickScheduler {
 
     private void advanceSimulatedClock() {
         if (clock instanceof MutableClock mutableClock) {
-            mutableClock.addMinutes(simulationTimeService.getSimulatedMinutesPerTick());
+            mutableClock.addSeconds(simulationTimeService.getSimulatedSecondsPerTick());
         }
     }
 

@@ -44,6 +44,10 @@ public class MutableClock extends Clock {
         this.state.setInstant(this.state.getInstant().plus(minutes, ChronoUnit.MINUTES));
     }
 
+    public void addSeconds(long seconds) {
+        this.state.setInstant(this.state.getInstant().plus(seconds, ChronoUnit.SECONDS));
+    }
+
     private static class TimeState {
         private Instant instant;
 

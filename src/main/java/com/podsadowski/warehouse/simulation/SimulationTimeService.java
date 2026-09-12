@@ -11,22 +11,28 @@ import java.util.concurrent.ThreadLocalRandom;
 public class SimulationTimeService {
 
     private final WarehouseProperties warehouseProperties;
+    private final SimulationRuntimeState simulationRuntimeState;
 
     public long getSimulatedMinutesPerTick() {
         return warehouseProperties.getSimulation().getSimulatedMinutesPerTick();
     }
 
-    public long getAccelerationFactor() {
-        WarehouseProperties.Simulation sim = warehouseProperties.getSimulation();
-        return sim.getSimulatedMinutesPerTick() * 60 * 1000 / sim.getTickIntervalMs();
+    /**
+     * Simulated seconds to advance per scheduler tick at the current speed.
+     * At 1x with a 1000 ms tick interval, advances 1 simulated second.
+     */
+    public long getSimulatedSecondsPerTick() {
+        long tickIntervalMs = warehouseProperties.getScheduler().getTickIntervalMs();
+        long baseSeconds = Math.max(1, tickIntervalMs / 1000);
+        return baseSeconds * simulationRuntimeState.getSpeedMultiplier();
     }
 
     public long toRealSleepMs(long simulatedSeconds) {
-        long factor = getAccelerationFactor();
-        if (factor <= 0) {
+        int speed = simulationRuntimeState.getSpeedMultiplier();
+        if (speed <= 0) {
             return simulatedSeconds * 1000;
         }
-        return Math.max(1, simulatedSeconds * 1000 / factor);
+        return Math.max(1, simulatedSeconds * 1000L / speed);
     }
 
     public long randomWorkIntervalSeconds() {
