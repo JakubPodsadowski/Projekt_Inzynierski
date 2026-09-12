@@ -116,9 +116,8 @@ public class WarehouseProperties {
 
             defaults.put(DepartmentName.PACKING, 55.0);
 
-            defaults.put(DepartmentName.PUTAWAY, 40.0);
-
-            defaults.put(DepartmentName.PREP_UNPACKING, 75.0);
+            // Inbound putaway absorbs former PREP_UNPACKING capacity norms
+            defaults.put(DepartmentName.PUTAWAY, 55.0);
 
             return defaults;
 
