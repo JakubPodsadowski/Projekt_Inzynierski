@@ -2,8 +2,10 @@ package com.podsadowski.warehouse.simulation;
 
 import com.podsadowski.warehouse.config.WarehouseProperties;
 import com.podsadowski.warehouse.domain.dto.WorkProgressEvent;
+import com.podsadowski.warehouse.domain.entity.DepartmentName;
 import com.podsadowski.warehouse.domain.entity.Employee;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.order.OutboundOrderService;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import com.podsadowski.warehouse.relocation.RelocationFulfillmentService;
 import lombok.AllArgsConstructor;
@@ -16,8 +18,9 @@ import java.time.LocalDateTime;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Demo-profile per-employee work loop. Simulates item processing at accelerated time
- * and publishes {@link WorkProgressEvent} records to Kafka.
+ * Demo-profile per-employee work loop.
+ * PICKING / PACKING consume the outbound order pipeline; PUTAWAY keeps a local item counter
+ * until inbound putaway (stage 3) lands.
  */
 @Slf4j
 @AllArgsConstructor
@@ -32,6 +35,7 @@ public class EmployeeSimulationTask implements Runnable {
     private final EmployeePerformanceService employeePerformanceService;
     private final RelocationFulfillmentService relocationFulfillmentService;
     private final WarehouseProperties warehouseProperties;
+    private final OutboundOrderService outboundOrderService;
 
     @Override
     public void run() {
@@ -45,7 +49,6 @@ public class EmployeeSimulationTask implements Runnable {
                 Thread.sleep(realSleepMs);
 
                 Employee employee = employeeRepository.findById(employeeId).orElse(null);
-
                 if (employee == null) {
                     continue;
                 }
@@ -61,37 +64,25 @@ public class EmployeeSimulationTask implements Runnable {
                     continue;
                 }
 
-                // Leave order empty while a relocation is pending so the tick can start transit.
-                if (!employee.hasActiveOrder()) {
-                    if (employee.hasPendingRelocation()) {
-                        Thread.sleep(simulation.getBreakPollMs());
-                        continue;
-                    }
-                    employee.setOrderItemsRemaining(relocationFulfillmentService.randomOrderSize());
-                    employeeRepository.save(employee);
+                if (employee.hasPendingRelocation() && !employee.hasActiveOrder()) {
+                    Thread.sleep(simulation.getBreakPollMs());
+                    continue;
                 }
 
-                var department = employee.getCurrentDepartment();
-                double targetIph = employeePerformanceService.getEffectiveWorkIph(
-                        employee, department.getName(), now);
-
-                double intervalHours = simulatedIntervalSeconds / 3600.0;
-                double randomFactor = ThreadLocalRandom.current().nextDouble(
-                        simulation.getThroughputRandomMin(),
-                        simulation.getThroughputRandomMax());
-                int processed = probabilisticRound(targetIph * intervalHours * randomFactor);
-                processed = Math.min(processed, employee.getOrderItemsRemaining());
+                DepartmentName departmentName = employee.getCurrentDepartment().getName();
+                int processed = switch (departmentName) {
+                    case PICKING -> processPicking(employee, simulatedIntervalSeconds, now);
+                    case PACKING -> processPacking(employee, simulatedIntervalSeconds, now);
+                    case PUTAWAY -> processLegacyPutaway(employee, simulatedIntervalSeconds, now, simulation);
+                };
 
                 if (processed <= 0) {
                     continue;
                 }
 
-                employee.setOrderItemsRemaining(employee.getOrderItemsRemaining() - processed);
-                employeeRepository.save(employee);
-
                 WorkProgressEvent event = new WorkProgressEvent(
                         employee.getId(),
-                        department.getName(),
+                        departmentName,
                         processed,
                         now,
                         simulatedIntervalSeconds
@@ -107,6 +98,66 @@ public class EmployeeSimulationTask implements Runnable {
                 log.error("Error while simulating employees work ID: {}", employeeId, e);
             }
         }
+    }
+
+    private int processPicking(Employee employee, long simulatedIntervalSeconds, LocalDateTime now) {
+        if (employee.hasPendingRelocation() && !employee.hasActiveOrder()) {
+            return 0;
+        }
+        if (outboundOrderService.ensurePickAssignment(employeeId).isEmpty()) {
+            return 0;
+        }
+        int capacity = throughputCapacity(employee, simulatedIntervalSeconds, now);
+        return outboundOrderService.progressPick(employeeId, capacity);
+    }
+
+    private int processPacking(Employee employee, long simulatedIntervalSeconds, LocalDateTime now) {
+        if (employee.hasPendingRelocation() && !employee.hasActiveOrder()) {
+            return 0;
+        }
+        if (outboundOrderService.ensurePackAssignment(employeeId).isEmpty()) {
+            return 0;
+        }
+        int capacity = throughputCapacity(employee, simulatedIntervalSeconds, now);
+        return outboundOrderService.progressPack(employeeId, capacity);
+    }
+
+    private int processLegacyPutaway(
+            Employee employee,
+            long simulatedIntervalSeconds,
+            LocalDateTime now,
+            WarehouseProperties.Simulation simulation
+    ) {
+        // Leave order empty while a relocation is pending so the tick can start transit.
+        if (!employee.hasActiveOrder()) {
+            if (employee.hasPendingRelocation()) {
+                return 0;
+            }
+            employee.setOrderItemsRemaining(relocationFulfillmentService.randomOrderSize());
+            employeeRepository.save(employee);
+        }
+
+        int processed = Math.min(
+                throughputCapacity(employee, simulatedIntervalSeconds, now),
+                employee.getOrderItemsRemaining()
+        );
+        if (processed <= 0) {
+            return 0;
+        }
+        employee.setOrderItemsRemaining(employee.getOrderItemsRemaining() - processed);
+        employeeRepository.save(employee);
+        return processed;
+    }
+
+    private int throughputCapacity(Employee employee, long simulatedIntervalSeconds, LocalDateTime now) {
+        WarehouseProperties.Simulation simulation = warehouseProperties.getSimulation();
+        double targetIph = employeePerformanceService.getEffectiveWorkIph(
+                employee, employee.getCurrentDepartment().getName(), now);
+        double intervalHours = simulatedIntervalSeconds / 3600.0;
+        double randomFactor = ThreadLocalRandom.current().nextDouble(
+                simulation.getThroughputRandomMin(),
+                simulation.getThroughputRandomMax());
+        return probabilisticRound(targetIph * intervalHours * randomFactor);
     }
 
     private int probabilisticRound(double value) {

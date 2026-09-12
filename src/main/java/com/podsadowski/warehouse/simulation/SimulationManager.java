@@ -3,6 +3,7 @@ package com.podsadowski.warehouse.simulation;
 import com.podsadowski.warehouse.config.WarehouseProperties;
 import com.podsadowski.warehouse.domain.entity.Employee;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.order.OutboundOrderService;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import com.podsadowski.warehouse.relocation.RelocationFulfillmentService;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class SimulationManager implements SimulationControl {
     private final EmployeePerformanceService employeePerformanceService;
     private final RelocationFulfillmentService relocationFulfillmentService;
     private final WarehouseProperties warehouseProperties;
+    private final OutboundOrderService outboundOrderService;
 
     private ExecutorService executor;
     private volatile boolean simulationRunning;
@@ -98,7 +100,8 @@ public class SimulationManager implements SimulationControl {
                 simulationTimeService,
                 employeePerformanceService,
                 relocationFulfillmentService,
-                warehouseProperties
+                warehouseProperties,
+                outboundOrderService
         );
         executor.submit(task);
     }

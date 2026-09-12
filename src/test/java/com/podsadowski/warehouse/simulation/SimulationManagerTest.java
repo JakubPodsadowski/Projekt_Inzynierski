@@ -3,6 +3,7 @@ package com.podsadowski.warehouse.simulation;
 import com.podsadowski.warehouse.config.WarehouseProperties;
 import com.podsadowski.warehouse.domain.entity.Employee;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.order.OutboundOrderService;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import com.podsadowski.warehouse.relocation.RelocationFulfillmentService;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,8 @@ class SimulationManagerTest {
     private RelocationFulfillmentService relocationFulfillmentService;
     @Mock
     private WarehouseProperties warehouseProperties;
+    @Mock
+    private OutboundOrderService outboundOrderService;
 
     private SimulationManager simulationManager;
 
@@ -52,7 +55,8 @@ class SimulationManagerTest {
                 simulationTimeService,
                 employeePerformanceService,
                 relocationFulfillmentService,
-                warehouseProperties
+                warehouseProperties,
+                outboundOrderService
         );
 
         Employee employee = new Employee();

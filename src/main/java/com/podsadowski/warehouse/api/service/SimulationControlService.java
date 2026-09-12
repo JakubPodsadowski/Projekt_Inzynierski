@@ -72,9 +72,8 @@ public class SimulationControlService {
     public OrderSurgeResponse orderSurge(OrderSurgeRequest request) {
         requireDemoMode();
         Integer items = request != null ? request.itemsPerEmployee() : null;
-        int affected = simulationChaosService.surgeOrders(items);
-        int applied = items != null ? items : SimulationChaosService.DEFAULT_SURGE_ITEMS;
-        return new OrderSurgeResponse(applied, affected);
+        var result = simulationChaosService.surgeOrders(items);
+        return new OrderSurgeResponse(result.itemsCreated(), result.ordersCreated());
     }
 
     private void requireDemoMode() {

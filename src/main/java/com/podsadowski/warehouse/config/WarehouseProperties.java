@@ -76,6 +76,12 @@ public class WarehouseProperties {
 
         private double throughputRandomMax = 1.15;
 
+        /** Demo: how often to try creating a new outbound order (real ms). */
+        private long orderGenerateIntervalMs = 4_000;
+
+        /** Demo: cap on READY_TO_PICK backlog before generator pauses. */
+        private int maxOpenPickOrders = 25;
+
     }
 
 

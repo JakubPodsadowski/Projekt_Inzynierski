@@ -10,6 +10,8 @@ warehouse:
     work-interval-seconds-max: 90
     throughput-random-min: 0.85
     throughput-random-max: 1.15
+    order-generate-interval-ms: 4000
+    max-open-pick-orders: 25
   breaks:
     first-shift:
       first-break-start: "09:00"

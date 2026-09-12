@@ -161,7 +161,8 @@ const WarehouseSimulation = (function () {
             itemsPerEmployee: items
         });
         WarehouseApi.showToast(
-            'Chaos: +' + response.itemsPerEmployee + ' items for ' + response.affectedEmployees + ' employees',
+            'Chaos: +' + response.itemsPerEmployee + ' items in '
+                + response.affectedEmployees + ' new orders',
             'success'
         );
         return response;

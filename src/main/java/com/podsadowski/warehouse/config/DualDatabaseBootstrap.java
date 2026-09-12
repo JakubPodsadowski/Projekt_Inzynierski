@@ -13,6 +13,8 @@ import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
 import com.podsadowski.warehouse.domain.repository.ProductRepository;
 import com.podsadowski.warehouse.domain.repository.StockLevelRepository;
 import com.podsadowski.warehouse.domain.repository.StorageLocationRepository;
+import com.podsadowski.warehouse.order.OutboundOrderGenerator;
+import com.podsadowski.warehouse.order.OutboundOrderService;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import com.podsadowski.warehouse.relocation.RelocationFulfillmentService;
 import jakarta.persistence.EntityManagerFactory;
@@ -57,6 +59,8 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
     private final EmployeePerformanceService employeePerformanceService;
     private final RelocationFulfillmentService relocationFulfillmentService;
     private final WarehouseProperties warehouseProperties;
+    private final OutboundOrderGenerator outboundOrderGenerator;
+    private final OutboundOrderService outboundOrderService;
     private final DataSource realDataSource;
     private final DataSource demoDataSource;
 
@@ -72,6 +76,8 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             EmployeePerformanceService employeePerformanceService,
             RelocationFulfillmentService relocationFulfillmentService,
             WarehouseProperties warehouseProperties,
+            OutboundOrderGenerator outboundOrderGenerator,
+            OutboundOrderService outboundOrderService,
             @Qualifier("realDataSource") DataSource realDataSource,
             @Qualifier("demoDataSource") DataSource demoDataSource
     ) {
@@ -86,6 +92,8 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
         this.employeePerformanceService = employeePerformanceService;
         this.relocationFulfillmentService = relocationFulfillmentService;
         this.warehouseProperties = warehouseProperties;
+        this.outboundOrderGenerator = outboundOrderGenerator;
+        this.outboundOrderService = outboundOrderService;
         this.realDataSource = realDataSource;
         this.demoDataSource = demoDataSource;
     }
@@ -115,6 +123,7 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             tx.executeWithoutResult(status -> {
                 seedWorkforceIfEmpty();
                 seedCatalogIfEmpty();
+                seedOutboundOrdersIfEmpty();
             });
         }
     }
@@ -123,6 +132,7 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
         try {
             boolean hasDepartments = hasTable(dataSource, "departments");
             boolean hasProducts = hasTable(dataSource, "products");
+            boolean hasOutbound = hasTable(dataSource, "outbound_orders");
             if (!hasDepartments) {
                 log.info("Creating full schema on {}", modeHolder.get());
                 entityManagerFactory.unwrap(SessionFactory.class)
@@ -133,6 +143,10 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             if (!hasProducts) {
                 log.info("Creating catalog tables on {}", modeHolder.get());
                 createCatalogTables(dataSource);
+            }
+            if (!hasOutbound) {
+                log.info("Creating outbound order tables on {}", modeHolder.get());
+                createOutboundOrderTables(dataSource);
             }
         } catch (Exception e) {
             throw new IllegalStateException("Failed to prepare schema for " + modeHolder.get(), e);
@@ -165,6 +179,39 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
                         location_id BIGINT NOT NULL REFERENCES storage_locations(id),
                         quantity INT NOT NULL,
                         CONSTRAINT uk_stock_product_location UNIQUE (product_id, location_id)
+                    )
+                    """);
+        }
+    }
+
+    private void createOutboundOrderTables(DataSource dataSource) throws Exception {
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS outbound_orders (
+                        id BIGSERIAL PRIMARY KEY,
+                        order_number VARCHAR(64) NOT NULL UNIQUE,
+                        status VARCHAR(32) NOT NULL,
+                        priority_score INT NOT NULL,
+                        due_at TIMESTAMP,
+                        vip BOOLEAN NOT NULL DEFAULT FALSE,
+                        external_ref VARCHAR(128),
+                        assigned_employee_id BIGINT,
+                        created_at TIMESTAMP NOT NULL,
+                        picking_started_at TIMESTAMP,
+                        picking_completed_at TIMESTAMP,
+                        packing_started_at TIMESTAMP,
+                        packing_completed_at TIMESTAMP
+                    )
+                    """);
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS outbound_order_lines (
+                        id BIGSERIAL PRIMARY KEY,
+                        order_id BIGINT NOT NULL REFERENCES outbound_orders(id) ON DELETE CASCADE,
+                        product_id BIGINT NOT NULL REFERENCES products(id),
+                        quantity_ordered INT NOT NULL,
+                        quantity_picked INT NOT NULL DEFAULT 0,
+                        quantity_packed INT NOT NULL DEFAULT 0
                     )
                     """);
         }
@@ -367,6 +414,19 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
                 stockLevelRepository.count(),
                 modeHolder.get()
         );
+    }
+
+    private void seedOutboundOrdersIfEmpty() {
+        if (productRepository.count() == 0) {
+            return;
+        }
+        if (outboundOrderService.countReadyToPick() > 0
+                || outboundOrderService.countReadyToPack() > 0) {
+            log.info("{} outbound orders already present", modeHolder.get());
+            return;
+        }
+        int created = outboundOrderGenerator.createRandomOrders(10);
+        log.info("Seeded {} outbound orders into {}", created, modeHolder.get());
     }
 
     private record ProductSeed(String sku, String name) {
