@@ -1,13 +1,9 @@
 /**
- * Overview dashboard: live data only in DEMO; REAL shows zeros / empty departments.
+ * Overview dashboard: live warehouse KPIs and department deficits.
  */
 (function () {
     const POLL_INTERVAL_MS = 2500;
     let requestSeq = 0;
-
-    function isDemoMode() {
-        return document.body.classList.contains('mode-demo');
-    }
 
     function formatNumber(value, decimals) {
         if (value == null || Number.isNaN(value)) {
@@ -75,16 +71,6 @@
         return div.innerHTML;
     }
 
-    function renderEmptyOverview() {
-        setText('kpi-imbalance', '0.0');
-        setText('kpi-pending', '0');
-        setText('kpi-in-transit', '0');
-        setText('kpi-on-break', '0');
-        setText('kpi-total-employees', '0');
-        setText('overview-timestamp', '—');
-        renderDepartments([]);
-    }
-
     function renderOverview(data) {
         setText('kpi-imbalance', formatNumber(data.deficitImbalance, 1));
         setText('kpi-pending', String(data.pendingRelocations));
@@ -98,22 +84,16 @@
     function setLoading(loading) {
         const el = document.getElementById('overview-loading');
         if (el) {
-            el.classList.toggle('d-none', !(loading && isDemoMode()));
+            el.classList.toggle('d-none', !loading);
         }
     }
 
     async function refresh() {
-        if (!isDemoMode()) {
-            renderEmptyOverview();
-            return;
-        }
-
         const seq = ++requestSeq;
         setLoading(true);
         try {
             const data = await WarehouseApi.get('/overview');
-            if (seq !== requestSeq || !isDemoMode()) {
-                renderEmptyOverview();
+            if (seq !== requestSeq) {
                 return;
             }
             renderOverview(data);
@@ -129,17 +109,12 @@
             return;
         }
 
-        renderEmptyOverview();
         refresh();
         setInterval(refresh, POLL_INTERVAL_MS);
 
-        window.addEventListener('warehouse:mode', function (event) {
-            if (event.detail && event.detail.demo) {
-                refresh();
-            } else {
-                requestSeq++;
-                renderEmptyOverview();
-            }
+        window.addEventListener('warehouse:mode', function () {
+            requestSeq++;
+            refresh();
         });
     }
 

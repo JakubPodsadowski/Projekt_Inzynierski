@@ -1,12 +1,29 @@
 services:
   postgres:
     image: 'postgres:16-alpine'
+    container_name: warehouse-postgres
     environment:
       - 'POSTGRES_DB=warehouse_db'
       - 'POSTGRES_PASSWORD=secret'
       - 'POSTGRES_USER=admin'
     ports:
       - '5433:5432'
+    labels:
+      # Explicit JDBC URLs in application*.yml; ignore auto service-connection
+      # so two Postgres services do not conflict.
+      org.springframework.boot.ignore: true
+
+  postgres-demo:
+    image: 'postgres:16-alpine'
+    container_name: warehouse-postgres-demo
+    environment:
+      - 'POSTGRES_DB=warehouse_demo'
+      - 'POSTGRES_PASSWORD=secret'
+      - 'POSTGRES_USER=admin'
+    ports:
+      - '5434:5432'
+    labels:
+      org.springframework.boot.ignore: true
 
   kafka:
     image: apache/kafka:3.7.0

@@ -4,37 +4,52 @@ import com.podsadowski.warehouse.api.dto.SetSystemModeRequest;
 import com.podsadowski.warehouse.api.dto.SystemMode;
 import com.podsadowski.warehouse.api.dto.SystemModeResponse;
 import com.podsadowski.warehouse.api.exception.InvalidRequestException;
+import com.podsadowski.warehouse.config.DataSourceModeHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
- * Legacy DEMO/REAL toggle — delegates to {@link SimulationControlService}.
+ * Switches between REAL ({@code warehouse_db}) and DEMO ({@code warehouse_demo}) datasources
+ * and starts/stops the demo simulation accordingly.
  */
 @Service
 @RequiredArgsConstructor
 public class SystemModeService {
 
+    private final DataSourceModeHolder dataSourceModeHolder;
     private final SimulationControlService simulationControlService;
 
     public SystemModeResponse getMode() {
         var status = simulationControlService.getStatus();
-        SystemMode mode = status.running() && !status.paused() ? SystemMode.DEMO : SystemMode.REAL;
-        return new SystemModeResponse(mode, status.running(), status.profileDemo());
+        return new SystemModeResponse(status.mode(), status.running(), status.profileDemo());
     }
 
-    public SystemModeResponse setMode(SetSystemModeRequest request) {
-        if (!simulationControlService.getStatus().profileDemo()) {
+    public synchronized SystemModeResponse setMode(SetSystemModeRequest request) {
+        var status = simulationControlService.getStatus();
+        if (!status.profileDemo()) {
             if (request.mode() == SystemMode.DEMO) {
                 throw new InvalidRequestException("Demo mode requires spring profile 'demo'");
             }
             return getMode();
         }
 
-        if (request.mode() == SystemMode.DEMO) {
-            simulationControlService.resume();
-        } else {
-            simulationControlService.pause();
+        SystemMode target = request.mode();
+        if (target == dataSourceModeHolder.get()) {
+            if (target == SystemMode.DEMO && !status.running()) {
+                simulationControlService.resume();
+            }
+            return getMode();
         }
+
+        if (target == SystemMode.REAL) {
+            // Stop workers while still routed to the demo database.
+            simulationControlService.pause();
+            dataSourceModeHolder.set(SystemMode.REAL);
+        } else {
+            dataSourceModeHolder.set(SystemMode.DEMO);
+            simulationControlService.resume();
+        }
+
         return getMode();
     }
 }

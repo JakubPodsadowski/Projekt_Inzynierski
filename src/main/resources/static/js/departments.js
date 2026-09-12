@@ -5,10 +5,6 @@
     let departments = [];
     let requestSeq = 0;
 
-    function isDemoMode() {
-        return document.body.classList.contains('mode-demo');
-    }
-
     function formatNumber(value, decimals) {
         if (value == null || Number.isNaN(value)) {
             return '—';
@@ -92,19 +88,9 @@
     }
 
     async function loadDepartments() {
-        if (!isDemoMode()) {
-            departments = [];
-            renderTable();
-            renderDemoSelect();
-            return;
-        }
-
         const seq = ++requestSeq;
         const data = await WarehouseApi.get('/departments?sort=deficit,desc');
-        if (seq !== requestSeq || !isDemoMode()) {
-            departments = [];
-            renderTable();
-            renderDemoSelect();
+        if (seq !== requestSeq) {
             return;
         }
         departments = data;

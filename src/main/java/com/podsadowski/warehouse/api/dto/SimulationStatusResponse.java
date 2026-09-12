@@ -7,6 +7,7 @@ public record SimulationStatusResponse(
         int speed,
         boolean paused,
         boolean running,
-        boolean profileDemo
+        boolean profileDemo,
+        SystemMode mode
 ) {
 }

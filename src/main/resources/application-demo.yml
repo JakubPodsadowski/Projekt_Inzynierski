@@ -25,6 +25,8 @@ warehouse:
     top-performer-sample-size: 3
   seeding:
     employee-count: 40
+  kafka:
+    consumer-group-id: warehouse-analytics-group-demo
 
 spring:
   kafka:
