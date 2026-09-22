@@ -143,6 +143,7 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             boolean hasProducts = hasTable(dataSource, "products");
             boolean hasOutbound = hasTable(dataSource, "outbound_orders");
             boolean hasInbound = hasTable(dataSource, "inbound_receipts");
+            boolean hasActivities = hasTable(dataSource, "work_activities");
             if (!hasDepartments) {
                 log.info("Creating full schema on {}", modeHolder.get());
                 entityManagerFactory.unwrap(SessionFactory.class)
@@ -161,6 +162,10 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             if (!hasInbound) {
                 log.info("Creating inbound receipt tables on {}", modeHolder.get());
                 createInboundReceiptTables(dataSource);
+            }
+            if (!hasActivities) {
+                log.info("Creating work activity table on {}", modeHolder.get());
+                createWorkActivityTable(dataSource);
             }
         } catch (Exception e) {
             throw new IllegalStateException("Failed to prepare schema for " + modeHolder.get(), e);
@@ -255,6 +260,35 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
                         quantity_expected INT NOT NULL,
                         quantity_put_away INT NOT NULL DEFAULT 0
                     )
+                    """);
+        }
+    }
+
+    private void createWorkActivityTable(DataSource dataSource) throws Exception {
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS work_activities (
+                        id BIGSERIAL PRIMARY KEY,
+                        employee_id BIGINT NOT NULL,
+                        type VARCHAR(32) NOT NULL,
+                        department_name VARCHAR(32) NOT NULL,
+                        occurred_at TIMESTAMP NOT NULL,
+                        quantity INT NOT NULL DEFAULT 0,
+                        product_id BIGINT,
+                        product_sku VARCHAR(64),
+                        location_id BIGINT,
+                        location_code VARCHAR(64),
+                        outbound_order_id BIGINT,
+                        order_number VARCHAR(64),
+                        inbound_receipt_id BIGINT,
+                        receipt_number VARCHAR(64),
+                        message VARCHAR(512)
+                    )
+                    """);
+            statement.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_work_activities_employee_ts
+                    ON work_activities (employee_id, occurred_at)
                     """);
         }
     }

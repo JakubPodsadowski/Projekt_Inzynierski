@@ -4,6 +4,7 @@ import com.podsadowski.warehouse.api.dto.EmployeeResponse;
 import com.podsadowski.warehouse.api.dto.OverviewResponse;
 import com.podsadowski.warehouse.api.dto.RelocationLogResponse;
 import com.podsadowski.warehouse.api.dto.RelocationStatus;
+import com.podsadowski.warehouse.api.dto.WorkActivityResponse;
 import com.podsadowski.warehouse.api.exception.GlobalExceptionHandler;
 import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
 import com.podsadowski.warehouse.api.service.RelocationWriteService;
@@ -12,6 +13,7 @@ import com.podsadowski.warehouse.api.service.WorkforceWriteService;
 import com.podsadowski.warehouse.domain.entity.BreakTier;
 import com.podsadowski.warehouse.domain.entity.DepartmentName;
 import com.podsadowski.warehouse.domain.entity.RelocationLogStatus;
+import com.podsadowski.warehouse.domain.entity.WorkActivityType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -124,6 +126,18 @@ class WorkforceApiControllerTest {
                 .andExpect(jsonPath("$[0].employeeId").value(5));
     }
 
+    @Test
+    void getEmployeeActivities_returnsTimeline() throws Exception {
+        when(workforceReadService.findEmployeeActivities(5L, null))
+                .thenReturn(List.of(sampleActivity()));
+
+        mockMvc.perform(get("/api/v1/employees/5/activities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].type").value("PICK_ITEM"))
+                .andExpect(jsonPath("$[0].locationCode").value("A-01-02"))
+                .andExpect(jsonPath("$[0].quantity").value(3));
+    }
+
     private EmployeeResponse sampleEmployee() {
         return new EmployeeResponse(
                 5L,
@@ -157,6 +171,26 @@ class WorkforceApiControllerTest {
                 82.3,
                 38.7,
                 38.7
+        );
+    }
+
+    private WorkActivityResponse sampleActivity() {
+        return new WorkActivityResponse(
+                1L,
+                5L,
+                WorkActivityType.PICK_ITEM,
+                DepartmentName.PICKING,
+                LocalDateTime.of(2026, 9, 22, 10, 15),
+                3,
+                11L,
+                "SKU-1001",
+                21L,
+                "A-01-02",
+                30L,
+                "OUT-2026-09-22-1",
+                null,
+                null,
+                "Picked 3 × SKU-1001 from A-01-02"
         );
     }
 }

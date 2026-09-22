@@ -5,15 +5,18 @@ import com.podsadowski.warehouse.api.dto.EmployeeResponse;
 import com.podsadowski.warehouse.api.dto.OverviewResponse;
 import com.podsadowski.warehouse.api.dto.RelocationLogResponse;
 import com.podsadowski.warehouse.api.dto.RelocationStatus;
+import com.podsadowski.warehouse.api.dto.WorkActivityResponse;
 import com.podsadowski.warehouse.api.exception.InvalidRequestException;
 import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
 import com.podsadowski.warehouse.api.mapper.WorkforceMapper;
 import com.podsadowski.warehouse.domain.entity.Department;
 import com.podsadowski.warehouse.domain.entity.DepartmentName;
 import com.podsadowski.warehouse.domain.entity.Employee;
+import com.podsadowski.warehouse.domain.entity.WorkActivity;
 import com.podsadowski.warehouse.domain.repository.DepartmentRepository;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
 import com.podsadowski.warehouse.domain.repository.RelocationLogRepository;
+import com.podsadowski.warehouse.domain.repository.WorkActivityRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -34,6 +37,7 @@ public class WorkforceReadService {
     private final DepartmentRepository departmentRepository;
     private final EmployeeRepository employeeRepository;
     private final RelocationLogRepository relocationLogRepository;
+    private final WorkActivityRepository workActivityRepository;
     private final WorkforceMapper workforceMapper;
     private final Clock clock;
 
@@ -163,6 +167,36 @@ public class WorkforceReadService {
     public List<RelocationLogResponse> findEmployeeRelocationHistory(Long employeeId, Integer limit) {
         ensureEmployeeExists(employeeId);
         return findRelocationHistory(employeeId, limit);
+    }
+
+    public List<WorkActivityResponse> findEmployeeActivities(Long employeeId, Integer limit) {
+        ensureEmployeeExists(employeeId);
+        int pageSize = resolveHistoryLimit(limit);
+        return workActivityRepository
+                .findByEmployeeIdOrderByOccurredAtDescIdDesc(employeeId, PageRequest.of(0, pageSize))
+                .stream()
+                .map(this::toWorkActivityResponse)
+                .toList();
+    }
+
+    private WorkActivityResponse toWorkActivityResponse(WorkActivity activity) {
+        return new WorkActivityResponse(
+                activity.getId(),
+                activity.getEmployeeId(),
+                activity.getType(),
+                activity.getDepartmentName(),
+                activity.getOccurredAt(),
+                activity.getQuantity(),
+                activity.getProductId(),
+                activity.getProductSku(),
+                activity.getLocationId(),
+                activity.getLocationCode(),
+                activity.getOutboundOrderId(),
+                activity.getOrderNumber(),
+                activity.getInboundReceiptId(),
+                activity.getReceiptNumber(),
+                activity.getMessage()
+        );
     }
 
     private void ensureEmployeeExists(Long employeeId) {

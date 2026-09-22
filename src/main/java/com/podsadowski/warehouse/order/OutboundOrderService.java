@@ -1,16 +1,19 @@
 package com.podsadowski.warehouse.order;
 
+import com.podsadowski.warehouse.activity.WorkActivityService;
+import com.podsadowski.warehouse.activity.WorkActivityService.WorkActivityDraft;
+import com.podsadowski.warehouse.api.exception.InvalidRequestException;
+import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
 import com.podsadowski.warehouse.domain.entity.OutboundOrder;
 import com.podsadowski.warehouse.domain.entity.OutboundOrderLine;
 import com.podsadowski.warehouse.domain.entity.OutboundOrderStatus;
 import com.podsadowski.warehouse.domain.entity.Product;
 import com.podsadowski.warehouse.domain.entity.StockLevel;
+import com.podsadowski.warehouse.domain.entity.StorageLocation;
+import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
 import com.podsadowski.warehouse.domain.repository.OutboundOrderRepository;
 import com.podsadowski.warehouse.domain.repository.ProductRepository;
 import com.podsadowski.warehouse.domain.repository.StockLevelRepository;
-import com.podsadowski.warehouse.api.exception.InvalidRequestException;
-import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
-import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -20,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +43,7 @@ public class OutboundOrderService {
     private final ProductRepository productRepository;
     private final StockLevelRepository stockLevelRepository;
     private final EmployeeRepository employeeRepository;
+    private final WorkActivityService workActivityService;
     private final Clock clock;
 
     public static int computePriorityScore(boolean vip, LocalDateTime dueAt, LocalDateTime createdAt, LocalDateTime now) {
@@ -120,6 +125,7 @@ public class OutboundOrderService {
         order.setPriorityScore(computePriorityScore(order.isVip(), order.getDueAt(), order.getCreatedAt(), now));
         outboundOrderRepository.save(order);
         syncEmployeeRemaining(employeeId, order.remainingToPick());
+        workActivityService.record(WorkActivityDraft.pickStarted(employeeId, order.getId(), order.getOrderNumber()));
         log.debug("Employee {} claimed pick order {}", employeeId, order.getOrderNumber());
         return Optional.of(order);
     }
@@ -151,17 +157,34 @@ public class OutboundOrderService {
                 continue;
             }
             int take = Math.min(need, remainingBudget);
-            int deducted = deductStock(line.getProduct().getId(), take);
+            List<StockDeduction> deductions = deductStock(line.getProduct().getId(), take);
+            int deducted = deductions.stream().mapToInt(StockDeduction::quantity).sum();
             if (deducted <= 0) {
                 continue;
             }
             line.setQuantityPicked(line.getQuantityPicked() + deducted);
+            for (StockDeduction deduction : deductions) {
+                StorageLocation location = deduction.location();
+                workActivityService.record(WorkActivityDraft.pickItem(
+                        employeeId,
+                        order.getId(),
+                        order.getOrderNumber(),
+                        line.getProduct().getId(),
+                        line.getProduct().getSku(),
+                        location.getId(),
+                        location.getCode(),
+                        deduction.quantity()
+                ));
+            }
             processed += deducted;
             remainingBudget -= deducted;
         }
 
         if (order.remainingToPick() == 0) {
+            int totalPicked = order.getLines().stream().mapToInt(OutboundOrderLine::getQuantityPicked).sum();
             completePicking(order);
+            workActivityService.record(WorkActivityDraft.pickCompleted(
+                    employeeId, order.getId(), order.getOrderNumber(), totalPicked));
             syncEmployeeRemaining(employeeId, 0);
         } else {
             outboundOrderRepository.save(order);
@@ -193,6 +216,7 @@ public class OutboundOrderService {
         order.setPackingStartedAt(now);
         outboundOrderRepository.save(order);
         syncEmployeeRemaining(employeeId, order.remainingToPack());
+        workActivityService.record(WorkActivityDraft.packStarted(employeeId, order.getId(), order.getOrderNumber()));
         log.debug("Employee {} claimed pack order {}", employeeId, order.getOrderNumber());
         return Optional.of(order);
     }
@@ -225,11 +249,19 @@ public class OutboundOrderService {
             remainingBudget -= take;
         }
 
+        if (processed > 0) {
+            workActivityService.record(WorkActivityDraft.packProgress(
+                    employeeId, order.getId(), order.getOrderNumber(), processed));
+        }
+
         if (order.remainingToPack() == 0) {
+            int totalPacked = order.getLines().stream().mapToInt(OutboundOrderLine::getQuantityPacked).sum();
             order.setStatus(OutboundOrderStatus.PACKED);
             order.setPackingCompletedAt(LocalDateTime.now(clock));
             order.setAssignedEmployeeId(null);
             outboundOrderRepository.save(order);
+            workActivityService.record(WorkActivityDraft.packCompleted(
+                    employeeId, order.getId(), order.getOrderNumber(), totalPacked));
             syncEmployeeRemaining(employeeId, 0);
             log.debug("Order {} packed", order.getOrderNumber());
         } else {
@@ -268,12 +300,12 @@ public class OutboundOrderService {
                 .sum();
     }
 
-    private int deductStock(Long productId, int quantity) {
+    private List<StockDeduction> deductStock(Long productId, int quantity) {
         List<StockLevel> levels = stockLevelRepository.findByProductId(productId).stream()
                 .sorted(Comparator.comparingInt(StockLevel::getQuantity).reversed())
                 .toList();
         int left = quantity;
-        int deducted = 0;
+        List<StockDeduction> deductions = new ArrayList<>();
         for (StockLevel level : levels) {
             if (left <= 0) {
                 break;
@@ -285,9 +317,9 @@ public class OutboundOrderService {
             level.setQuantity(level.getQuantity() - take);
             stockLevelRepository.save(level);
             left -= take;
-            deducted += take;
+            deductions.add(new StockDeduction(level.getLocation(), take));
         }
-        return deducted;
+        return deductions;
     }
 
     private String nextOrderNumber(LocalDateTime now) {
@@ -295,5 +327,8 @@ public class OutboundOrderService {
     }
 
     public record OrderLineRequest(long productId, int quantity) {
+    }
+
+    private record StockDeduction(StorageLocation location, int quantity) {
     }
 }

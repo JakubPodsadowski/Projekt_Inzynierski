@@ -1,5 +1,7 @@
 package com.podsadowski.warehouse.inbound;
 
+import com.podsadowski.warehouse.activity.WorkActivityService;
+import com.podsadowski.warehouse.activity.WorkActivityService.WorkActivityDraft;
 import com.podsadowski.warehouse.api.exception.InvalidRequestException;
 import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
 import com.podsadowski.warehouse.domain.entity.InboundReceipt;
@@ -42,6 +44,7 @@ public class InboundPutawayService {
     private final StorageLocationRepository storageLocationRepository;
     private final StockLevelRepository stockLevelRepository;
     private final EmployeeRepository employeeRepository;
+    private final WorkActivityService workActivityService;
     private final Clock clock;
 
     @Transactional
@@ -105,6 +108,8 @@ public class InboundPutawayService {
         receipt.setStartedAt(now);
         inboundReceiptRepository.save(receipt);
         syncEmployeeRemaining(employeeId, receipt.remainingToPutAway());
+        workActivityService.record(WorkActivityDraft.putawayStarted(
+                employeeId, receipt.getId(), receipt.getReceiptNumber()));
         log.debug("Employee {} claimed putaway receipt {}", employeeId, receipt.getReceiptNumber());
         return Optional.of(receipt);
     }
@@ -143,15 +148,28 @@ public class InboundPutawayService {
             }
             addStock(line.getProduct(), location, take);
             line.setQuantityPutAway(line.getQuantityPutAway() + take);
+            workActivityService.record(WorkActivityDraft.putawayItem(
+                    employeeId,
+                    receipt.getId(),
+                    receipt.getReceiptNumber(),
+                    line.getProduct().getId(),
+                    line.getProduct().getSku(),
+                    location.getId(),
+                    location.getCode(),
+                    take
+            ));
             processed += take;
             remainingBudget -= take;
         }
 
         if (receipt.remainingToPutAway() == 0) {
+            int totalPutAway = receipt.getLines().stream().mapToInt(InboundReceiptLine::getQuantityPutAway).sum();
             receipt.setStatus(InboundReceiptStatus.COMPLETED);
             receipt.setCompletedAt(LocalDateTime.now(clock));
             receipt.setAssignedEmployeeId(null);
             inboundReceiptRepository.save(receipt);
+            workActivityService.record(WorkActivityDraft.putawayCompleted(
+                    employeeId, receipt.getId(), receipt.getReceiptNumber(), totalPutAway));
             syncEmployeeRemaining(employeeId, 0);
             log.debug("Receipt {} putaway completed", receipt.getReceiptNumber());
         } else {

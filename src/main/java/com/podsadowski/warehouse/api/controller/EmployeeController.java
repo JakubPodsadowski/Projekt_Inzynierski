@@ -5,6 +5,7 @@ import com.podsadowski.warehouse.api.dto.EmployeeResponse;
 import com.podsadowski.warehouse.api.dto.RelocationLogResponse;
 import com.podsadowski.warehouse.api.dto.RelocationStatus;
 import com.podsadowski.warehouse.api.dto.UpdateEmployeeRequest;
+import com.podsadowski.warehouse.api.dto.WorkActivityResponse;
 import com.podsadowski.warehouse.api.service.WorkforceReadService;
 import com.podsadowski.warehouse.api.service.WorkforceWriteService;
 import jakarta.validation.Valid;
@@ -77,5 +78,13 @@ public class EmployeeController {
             @RequestParam(required = false) Integer limit
     ) {
         return workforceReadService.findEmployeeRelocationHistory(id, limit);
+    }
+
+    @GetMapping("/employees/{id}/activities")
+    public List<WorkActivityResponse> getEmployeeActivities(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer limit
+    ) {
+        return workforceReadService.findEmployeeActivities(id, limit);
     }
 }
