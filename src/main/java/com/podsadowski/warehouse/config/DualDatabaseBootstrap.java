@@ -13,6 +13,8 @@ import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
 import com.podsadowski.warehouse.domain.repository.ProductRepository;
 import com.podsadowski.warehouse.domain.repository.StockLevelRepository;
 import com.podsadowski.warehouse.domain.repository.StorageLocationRepository;
+import com.podsadowski.warehouse.inbound.InboundPutawayService;
+import com.podsadowski.warehouse.inbound.InboundReceiptGenerator;
 import com.podsadowski.warehouse.order.OutboundOrderGenerator;
 import com.podsadowski.warehouse.order.OutboundOrderService;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
@@ -61,6 +63,8 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
     private final WarehouseProperties warehouseProperties;
     private final OutboundOrderGenerator outboundOrderGenerator;
     private final OutboundOrderService outboundOrderService;
+    private final InboundReceiptGenerator inboundReceiptGenerator;
+    private final InboundPutawayService inboundPutawayService;
     private final DataSource realDataSource;
     private final DataSource demoDataSource;
 
@@ -78,6 +82,8 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             WarehouseProperties warehouseProperties,
             OutboundOrderGenerator outboundOrderGenerator,
             OutboundOrderService outboundOrderService,
+            InboundReceiptGenerator inboundReceiptGenerator,
+            InboundPutawayService inboundPutawayService,
             @Qualifier("realDataSource") DataSource realDataSource,
             @Qualifier("demoDataSource") DataSource demoDataSource
     ) {
@@ -94,6 +100,8 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
         this.warehouseProperties = warehouseProperties;
         this.outboundOrderGenerator = outboundOrderGenerator;
         this.outboundOrderService = outboundOrderService;
+        this.inboundReceiptGenerator = inboundReceiptGenerator;
+        this.inboundPutawayService = inboundPutawayService;
         this.realDataSource = realDataSource;
         this.demoDataSource = demoDataSource;
     }
@@ -124,6 +132,7 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
                 seedWorkforceIfEmpty();
                 seedCatalogIfEmpty();
                 seedOutboundOrdersIfEmpty();
+                seedInboundReceiptsIfEmpty();
             });
         }
     }
@@ -133,6 +142,7 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             boolean hasDepartments = hasTable(dataSource, "departments");
             boolean hasProducts = hasTable(dataSource, "products");
             boolean hasOutbound = hasTable(dataSource, "outbound_orders");
+            boolean hasInbound = hasTable(dataSource, "inbound_receipts");
             if (!hasDepartments) {
                 log.info("Creating full schema on {}", modeHolder.get());
                 entityManagerFactory.unwrap(SessionFactory.class)
@@ -147,6 +157,10 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             if (!hasOutbound) {
                 log.info("Creating outbound order tables on {}", modeHolder.get());
                 createOutboundOrderTables(dataSource);
+            }
+            if (!hasInbound) {
+                log.info("Creating inbound receipt tables on {}", modeHolder.get());
+                createInboundReceiptTables(dataSource);
             }
         } catch (Exception e) {
             throw new IllegalStateException("Failed to prepare schema for " + modeHolder.get(), e);
@@ -212,6 +226,34 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
                         quantity_ordered INT NOT NULL,
                         quantity_picked INT NOT NULL DEFAULT 0,
                         quantity_packed INT NOT NULL DEFAULT 0
+                    )
+                    """);
+        }
+    }
+
+    private void createInboundReceiptTables(DataSource dataSource) throws Exception {
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS inbound_receipts (
+                        id BIGSERIAL PRIMARY KEY,
+                        receipt_number VARCHAR(64) NOT NULL UNIQUE,
+                        status VARCHAR(32) NOT NULL,
+                        external_ref VARCHAR(128),
+                        assigned_employee_id BIGINT,
+                        created_at TIMESTAMP NOT NULL,
+                        started_at TIMESTAMP,
+                        completed_at TIMESTAMP
+                    )
+                    """);
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS inbound_receipt_lines (
+                        id BIGSERIAL PRIMARY KEY,
+                        receipt_id BIGINT NOT NULL REFERENCES inbound_receipts(id) ON DELETE CASCADE,
+                        product_id BIGINT NOT NULL REFERENCES products(id),
+                        preferred_location_id BIGINT REFERENCES storage_locations(id),
+                        quantity_expected INT NOT NULL,
+                        quantity_put_away INT NOT NULL DEFAULT 0
                     )
                     """);
         }
@@ -427,6 +469,19 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
         }
         int created = outboundOrderGenerator.createRandomOrders(10);
         log.info("Seeded {} outbound orders into {}", created, modeHolder.get());
+    }
+
+    private void seedInboundReceiptsIfEmpty() {
+        if (productRepository.count() == 0 || storageLocationRepository.count() == 0) {
+            return;
+        }
+        if (inboundPutawayService.countReadyToPutAway() > 0
+                || inboundPutawayService.countInProgress() > 0) {
+            log.info("{} inbound receipts already present", modeHolder.get());
+            return;
+        }
+        int created = inboundReceiptGenerator.createRandomReceipts(6);
+        log.info("Seeded {} inbound receipts into {}", created, modeHolder.get());
     }
 
     private record ProductSeed(String sku, String name) {

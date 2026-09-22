@@ -3,6 +3,7 @@ package com.podsadowski.warehouse.simulation;
 import com.podsadowski.warehouse.config.WarehouseProperties;
 import com.podsadowski.warehouse.domain.entity.Employee;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.inbound.InboundPutawayService;
 import com.podsadowski.warehouse.order.OutboundOrderService;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import com.podsadowski.warehouse.relocation.RelocationFulfillmentService;
@@ -41,6 +42,8 @@ class SimulationManagerTest {
     private WarehouseProperties warehouseProperties;
     @Mock
     private OutboundOrderService outboundOrderService;
+    @Mock
+    private InboundPutawayService inboundPutawayService;
 
     private SimulationManager simulationManager;
 
@@ -56,7 +59,8 @@ class SimulationManagerTest {
                 employeePerformanceService,
                 relocationFulfillmentService,
                 warehouseProperties,
-                outboundOrderService
+                outboundOrderService,
+                inboundPutawayService
         );
 
         Employee employee = new Employee();

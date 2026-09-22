@@ -82,6 +82,12 @@ public class WarehouseProperties {
         /** Demo: cap on READY_TO_PICK backlog before generator pauses. */
         private int maxOpenPickOrders = 25;
 
+        /** Demo: how often to try creating a new inbound receipt (real ms). */
+        private long inboundGenerateIntervalMs = 6_000;
+
+        /** Demo: cap on READY_TO_PUTAWAY backlog before generator pauses. */
+        private int maxOpenPutawayReceipts = 15;
+
     }
 
 

@@ -5,6 +5,7 @@ import com.podsadowski.warehouse.domain.dto.WorkProgressEvent;
 import com.podsadowski.warehouse.domain.entity.DepartmentName;
 import com.podsadowski.warehouse.domain.entity.Employee;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.inbound.InboundPutawayService;
 import com.podsadowski.warehouse.order.OutboundOrderService;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import com.podsadowski.warehouse.relocation.RelocationFulfillmentService;
@@ -19,8 +20,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Demo-profile per-employee work loop.
- * PICKING / PACKING consume the outbound order pipeline; PUTAWAY keeps a local item counter
- * until inbound putaway (stage 3) lands.
+ * PICKING / PACKING use outbound queues; PUTAWAY uses inbound receipts → stock.
  */
 @Slf4j
 @AllArgsConstructor
@@ -36,6 +36,7 @@ public class EmployeeSimulationTask implements Runnable {
     private final RelocationFulfillmentService relocationFulfillmentService;
     private final WarehouseProperties warehouseProperties;
     private final OutboundOrderService outboundOrderService;
+    private final InboundPutawayService inboundPutawayService;
 
     @Override
     public void run() {
@@ -73,7 +74,7 @@ public class EmployeeSimulationTask implements Runnable {
                 int processed = switch (departmentName) {
                     case PICKING -> processPicking(employee, simulatedIntervalSeconds, now);
                     case PACKING -> processPacking(employee, simulatedIntervalSeconds, now);
-                    case PUTAWAY -> processLegacyPutaway(employee, simulatedIntervalSeconds, now, simulation);
+                    case PUTAWAY -> processPutaway(employee, simulatedIntervalSeconds, now);
                 };
 
                 if (processed <= 0) {
@@ -122,31 +123,15 @@ public class EmployeeSimulationTask implements Runnable {
         return outboundOrderService.progressPack(employeeId, capacity);
     }
 
-    private int processLegacyPutaway(
-            Employee employee,
-            long simulatedIntervalSeconds,
-            LocalDateTime now,
-            WarehouseProperties.Simulation simulation
-    ) {
-        // Leave order empty while a relocation is pending so the tick can start transit.
-        if (!employee.hasActiveOrder()) {
-            if (employee.hasPendingRelocation()) {
-                return 0;
-            }
-            employee.setOrderItemsRemaining(relocationFulfillmentService.randomOrderSize());
-            employeeRepository.save(employee);
-        }
-
-        int processed = Math.min(
-                throughputCapacity(employee, simulatedIntervalSeconds, now),
-                employee.getOrderItemsRemaining()
-        );
-        if (processed <= 0) {
+    private int processPutaway(Employee employee, long simulatedIntervalSeconds, LocalDateTime now) {
+        if (employee.hasPendingRelocation() && !employee.hasActiveOrder()) {
             return 0;
         }
-        employee.setOrderItemsRemaining(employee.getOrderItemsRemaining() - processed);
-        employeeRepository.save(employee);
-        return processed;
+        if (inboundPutawayService.ensurePutawayAssignment(employeeId).isEmpty()) {
+            return 0;
+        }
+        int capacity = throughputCapacity(employee, simulatedIntervalSeconds, now);
+        return inboundPutawayService.progressPutaway(employeeId, capacity);
     }
 
     private int throughputCapacity(Employee employee, long simulatedIntervalSeconds, LocalDateTime now) {

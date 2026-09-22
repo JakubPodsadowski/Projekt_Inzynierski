@@ -12,6 +12,8 @@ warehouse:
     throughput-random-max: 1.15
     order-generate-interval-ms: 4000
     max-open-pick-orders: 25
+    inbound-generate-interval-ms: 6000
+    max-open-putaway-receipts: 15
   breaks:
     first-shift:
       first-break-start: "09:00"
