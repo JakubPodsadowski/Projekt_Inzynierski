@@ -383,8 +383,16 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
         }
 
         var departments = departmentRepository.findAll();
-        Map<Long, Double> departmentIphTotals = new HashMap<>();
+        if (departments.isEmpty()) {
+            throw new IllegalStateException("No departments available for workforce seeding");
+        }
+        if (seeding.getEmployeeCount() < departments.size()) {
+            throw new IllegalStateException(
+                    "employeeCount must be at least the number of departments (" + departments.size() + ")");
+        }
 
+        Map<Long, Double> departmentIphTotals = new HashMap<>();
+        // Round-robin guarantees at least one employee per department.
         for (int i = 1; i <= seeding.getEmployeeCount(); i++) {
             Employee emp = new Employee();
             emp.setFirstName("Pracownik");
@@ -392,15 +400,15 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             emp.setOnBreak(false);
             emp.setBreakTier(i % 2 == 0 ? BreakTier.FIRST_SHIFT : BreakTier.SECOND_SHIFT);
 
-            Department randomDept = departments.get(random.nextInt(departments.size()));
-            emp.setCurrentDepartment(randomDept);
+            Department assignedDept = departments.get((i - 1) % departments.size());
+            emp.setCurrentDepartment(assignedDept);
 
-            double employeeIph = employeePerformanceService.getDefaultIph(randomDept.getName());
+            double employeeIph = employeePerformanceService.getDefaultIph(assignedDept.getName());
             emp.setCurrentIph(employeeIph);
             emp.setOrderItemsRemaining(relocationFulfillmentService.randomOrderSize());
 
             employeeRepository.save(emp);
-            departmentIphTotals.merge(randomDept.getId(), employeeIph, Double::sum);
+            departmentIphTotals.merge(assignedDept.getId(), employeeIph, Double::sum);
         }
 
         double minMultiplier = seeding.getRequiredIphMinMultiplier();
@@ -413,7 +421,12 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             departmentRepository.save(department);
         }
 
-        log.info("Seeded {} employees into {}", seeding.getEmployeeCount(), modeHolder.get());
+        log.info(
+                "Seeded {} employees across {} departments into {}",
+                seeding.getEmployeeCount(),
+                departments.size(),
+                modeHolder.get()
+        );
     }
 
     private void seedCatalogIfEmpty() {

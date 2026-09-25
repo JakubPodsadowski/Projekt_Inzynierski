@@ -3,6 +3,7 @@ package com.podsadowski.warehouse.scheduling;
 import com.podsadowski.warehouse.config.MutableClock;
 import com.podsadowski.warehouse.domain.entity.Employee;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.performance.DepartmentDemandService;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
 import com.podsadowski.warehouse.performance.IphCalculationService;
 import com.podsadowski.warehouse.relocation.RelocationEngine;
@@ -34,6 +35,7 @@ public class WarehouseTickScheduler {
     private final BreakManager breakManager;
     private final EmployeePerformanceService employeePerformanceService;
     private final IphCalculationService iphCalculationService;
+    private final DepartmentDemandService departmentDemandService;
     private final SimulationTimeService simulationTimeService;
     private final SimulationRuntimeState simulationRuntimeState;
     private final EmployeeRepository employeeRepository;
@@ -55,6 +57,7 @@ public class WarehouseTickScheduler {
         relocationFulfillmentService.processPendingRelocations(currentTime);
         employeePerformanceService.recalculateAllEmployeeIph(currentTime);
         iphCalculationService.recalculateDepartmentIph();
+        departmentDemandService.updateRequiredIphFromPipeline();
         relocationEngine.checkAndBalanceWorkforce();
         resetDailyCountersIfNewDay(currentTime.toLocalDate());
     }

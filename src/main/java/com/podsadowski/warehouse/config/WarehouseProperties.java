@@ -50,6 +50,8 @@ public class WarehouseProperties {
 
     private Seeding seeding = new Seeding();
 
+    private Demand demand = new Demand();
+
     private Kafka kafka = new Kafka();
 
 
@@ -248,6 +250,26 @@ public class WarehouseProperties {
         private double requiredIphMaxMultiplier = 1.25;
 
         private double performanceMultiplier = 1.0;
+
+    }
+
+
+
+    /**
+     * Maps pipeline backlog (items) to department {@code requiredIPH}
+     * so RelocationEngine can staff empty queues (e.g. PACKING).
+     */
+    @Getter
+
+    @Setter
+
+    public static class Demand {
+
+        /** Simulated hours over which the backlog should be cleared. */
+        private double horizonHours = 1.0;
+
+        /** Floor when backlog &gt; 0 so a starved department always exceeds balance tolerance. */
+        private double minRequiredIphWhenBacklog = 40.0;
 
     }
 

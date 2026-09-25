@@ -27,6 +27,9 @@ warehouse:
       second-break-end: "13:00"
   relocation:
     top-performer-sample-size: 3
+  demand:
+    horizon-hours: 1.0
+    min-required-iph-when-backlog: 40.0
   seeding:
     employee-count: 40
   kafka:
