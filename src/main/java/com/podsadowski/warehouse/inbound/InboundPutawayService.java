@@ -26,11 +26,11 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Creates inbound receipts and drives putaway onto storage locations (stock increases).
+ * Putaway respects mono-SKU bin capacity ({@link Product#getUnitsPerBin()}) with spillover.
  */
 @Service
 @RequiredArgsConstructor
@@ -45,6 +45,7 @@ public class InboundPutawayService {
     private final StockLevelRepository stockLevelRepository;
     private final EmployeeRepository employeeRepository;
     private final WorkActivityService workActivityService;
+    private final LocationCapacityService locationCapacityService;
     private final Clock clock;
 
     @Transactional
@@ -136,30 +137,45 @@ public class InboundPutawayService {
             if (remainingBudget <= 0) {
                 break;
             }
-            int need = line.remainingToPutAway();
-            if (need <= 0) {
-                continue;
+            Long preferredId = line.getPreferredLocation() != null ? line.getPreferredLocation().getId() : null;
+            Product product = line.getProduct();
+
+            // Exhaust this SKU (spill across bins) before moving to the next line.
+            while (remainingBudget > 0 && line.remainingToPutAway() > 0) {
+                Optional<StorageLocation> target = locationCapacityService.findNextLocationWithSpace(
+                        product, preferredId);
+                if (target.isEmpty()) {
+                    log.warn(
+                            "No free bin capacity for product {} (unitsPerBin={}); receipt {} stays in progress",
+                            product.getSku(),
+                            product.getUnitsPerBin(),
+                            receipt.getReceiptNumber()
+                    );
+                    break;
+                }
+
+                StorageLocation location = target.get();
+                int free = locationCapacityService.freeCapacity(location, product);
+                int take = Math.min(line.remainingToPutAway(), Math.min(free, remainingBudget));
+                if (take <= 0) {
+                    break;
+                }
+
+                addStock(product, location, take);
+                line.setQuantityPutAway(line.getQuantityPutAway() + take);
+                workActivityService.record(WorkActivityDraft.putawayItem(
+                        employeeId,
+                        receipt.getId(),
+                        receipt.getReceiptNumber(),
+                        product.getId(),
+                        product.getSku(),
+                        location.getId(),
+                        location.getCode(),
+                        take
+                ));
+                processed += take;
+                remainingBudget -= take;
             }
-            int take = Math.min(need, remainingBudget);
-            StorageLocation location = resolveLocation(line);
-            if (location == null) {
-                log.warn("No storage location available for putaway of product {}", line.getProduct().getSku());
-                continue;
-            }
-            addStock(line.getProduct(), location, take);
-            line.setQuantityPutAway(line.getQuantityPutAway() + take);
-            workActivityService.record(WorkActivityDraft.putawayItem(
-                    employeeId,
-                    receipt.getId(),
-                    receipt.getReceiptNumber(),
-                    line.getProduct().getId(),
-                    line.getProduct().getSku(),
-                    location.getId(),
-                    location.getCode(),
-                    take
-            ));
-            processed += take;
-            remainingBudget -= take;
         }
 
         if (receipt.remainingToPutAway() == 0) {
@@ -185,22 +201,6 @@ public class InboundPutawayService {
 
     public long countInProgress() {
         return inboundReceiptRepository.countByStatus(InboundReceiptStatus.IN_PROGRESS);
-    }
-
-    private StorageLocation resolveLocation(InboundReceiptLine line) {
-        if (line.getPreferredLocation() != null) {
-            return line.getPreferredLocation();
-        }
-        List<StockLevel> existing = stockLevelRepository.findByProductId(line.getProduct().getId());
-        if (!existing.isEmpty()) {
-            existing.sort(Comparator.comparingInt(StockLevel::getQuantity).reversed());
-            return existing.getFirst().getLocation();
-        }
-        List<StorageLocation> all = storageLocationRepository.findAll();
-        if (all.isEmpty()) {
-            return null;
-        }
-        return all.get(ThreadLocalRandom.current().nextInt(all.size()));
     }
 
     private void addStock(Product product, StorageLocation location, int quantity) {

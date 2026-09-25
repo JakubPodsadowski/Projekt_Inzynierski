@@ -29,4 +29,11 @@ public class Product {
 
     @Column(nullable = false)
     private String name;
+
+    /**
+     * Max number of this SKU that fits on one storage location (bin).
+     * Locations are mono-SKU: a different product blocks the bin entirely.
+     */
+    @Column(name = "units_per_bin", nullable = false)
+    private int unitsPerBin = 6;
 }

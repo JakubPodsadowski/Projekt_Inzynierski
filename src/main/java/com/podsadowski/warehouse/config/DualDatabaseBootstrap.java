@@ -36,9 +36,11 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Schema on both DBs; DEMO gets workforce + product catalog seed. REAL stays empty of ops data.
@@ -131,6 +133,7 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             tx.executeWithoutResult(status -> {
                 seedWorkforceIfEmpty();
                 seedCatalogIfEmpty();
+                clampStockToBinCapacity();
                 seedOutboundOrdersIfEmpty();
                 seedInboundReceiptsIfEmpty();
             });
@@ -154,6 +157,8 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             if (!hasProducts) {
                 log.info("Creating catalog tables on {}", modeHolder.get());
                 createCatalogTables(dataSource);
+            } else {
+                ensureProductUnitsPerBinColumn(dataSource);
             }
             if (!hasOutbound) {
                 log.info("Creating outbound order tables on {}", modeHolder.get());
@@ -179,7 +184,8 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
                     CREATE TABLE IF NOT EXISTS products (
                         id BIGSERIAL PRIMARY KEY,
                         sku VARCHAR(64) NOT NULL UNIQUE,
-                        name VARCHAR(255) NOT NULL
+                        name VARCHAR(255) NOT NULL,
+                        units_per_bin INT NOT NULL DEFAULT 6
                     )
                     """);
             statement.execute("""
@@ -347,6 +353,34 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
         }
     }
 
+    private void ensureProductUnitsPerBinColumn(DataSource dataSource) throws Exception {
+        if (hasColumn(dataSource, "products", "units_per_bin")) {
+            return;
+        }
+        log.info("Adding products.units_per_bin column on {}", modeHolder.get());
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    ALTER TABLE products
+                    ADD COLUMN IF NOT EXISTS units_per_bin INT NOT NULL DEFAULT 6
+                    """);
+        }
+    }
+
+    private boolean hasColumn(DataSource dataSource, String tableName, String columnName) throws Exception {
+        try (Connection connection = dataSource.getConnection();
+             ResultSet columns = connection.getMetaData().getColumns(null, null, tableName, columnName)) {
+            if (columns.next()) {
+                return true;
+            }
+        }
+        try (Connection connection = dataSource.getConnection();
+             ResultSet columns = connection.getMetaData()
+                     .getColumns(null, null, tableName.toUpperCase(), columnName.toUpperCase())) {
+            return columns.next();
+        }
+    }
+
     private boolean hasTable(DataSource dataSource, String tableName) throws Exception {
         try (Connection connection = dataSource.getConnection();
              ResultSet tables = connection.getMetaData()
@@ -437,18 +471,18 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
 
         log.info("Seeding product catalog into {}", modeHolder.get());
         List<ProductSeed> seeds = List.of(
-                new ProductSeed("SKU-1001", "Kabel USB-C 1m"),
-                new ProductSeed("SKU-1002", "Kabel HDMI 2m"),
-                new ProductSeed("SKU-1003", "Mysz bezprzewodowa"),
-                new ProductSeed("SKU-1004", "Klawiatura membranowa"),
-                new ProductSeed("SKU-1005", "Podkladka pod mysz"),
-                new ProductSeed("SKU-1006", "Hub USB 4-port"),
-                new ProductSeed("SKU-1007", "Zasilacz 65W"),
-                new ProductSeed("SKU-1008", "Sluchawki nauszne"),
-                new ProductSeed("SKU-1009", "Etui na laptopa 15\""),
-                new ProductSeed("SKU-1010", "Pendrive 64GB"),
-                new ProductSeed("SKU-1011", "Karta SD 128GB"),
-                new ProductSeed("SKU-1012", "Adapter USB-C/HDMI")
+                new ProductSeed("SKU-1001", "Kabel USB-C 1m", 12),
+                new ProductSeed("SKU-1002", "Kabel HDMI 2m", 12),
+                new ProductSeed("SKU-1003", "Mysz bezprzewodowa", 6),
+                new ProductSeed("SKU-1004", "Klawiatura membranowa", 2),
+                new ProductSeed("SKU-1005", "Podkladka pod mysz", 12),
+                new ProductSeed("SKU-1006", "Hub USB 4-port", 6),
+                new ProductSeed("SKU-1007", "Zasilacz 65W", 1),
+                new ProductSeed("SKU-1008", "Sluchawki nauszne", 2),
+                new ProductSeed("SKU-1009", "Etui na laptopa 15\"", 1),
+                new ProductSeed("SKU-1010", "Pendrive 64GB", 24),
+                new ProductSeed("SKU-1011", "Karta SD 128GB", 24),
+                new ProductSeed("SKU-1012", "Adapter USB-C/HDMI", 6)
         );
 
         List<Product> products = new ArrayList<>();
@@ -456,14 +490,15 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             Product product = new Product();
             product.setSku(seed.sku());
             product.setName(seed.name());
+            product.setUnitsPerBin(seed.unitsPerBin());
             products.add(productRepository.save(product));
         }
 
         List<StorageLocation> locations = new ArrayList<>();
-        String[] aisles = {"A", "B", "C"};
+        String[] aisles = {"A", "B", "C", "D"};
         for (String aisle : aisles) {
-            for (int rack = 1; rack <= 4; rack++) {
-                for (int bin = 1; bin <= 3; bin++) {
+            for (int rack = 1; rack <= 6; rack++) {
+                for (int bin = 1; bin <= 4; bin++) {
                     StorageLocation location = new StorageLocation();
                     location.setAisle(aisle);
                     location.setRack(String.format("%02d", rack));
@@ -475,22 +510,33 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
         }
 
         Random random = new Random(42);
+        Set<Long> occupiedLocationIds = new HashSet<>();
+        int locationCursor = 0;
         for (int i = 0; i < products.size(); i++) {
             Product product = products.get(i);
-            StorageLocation primary = locations.get(i % locations.size());
+            StorageLocation primary = nextFreeLocation(locations, occupiedLocationIds, locationCursor);
+            if (primary == null) {
+                log.warn("Ran out of free locations while seeding stock for {}", product.getSku());
+                break;
+            }
+            locationCursor = (locations.indexOf(primary) + 1) % locations.size();
+            occupiedLocationIds.add(primary.getId());
+
             StockLevel primaryStock = new StockLevel();
             primaryStock.setProduct(product);
             primaryStock.setLocation(primary);
-            primaryStock.setQuantity(80 + random.nextInt(120));
+            primaryStock.setQuantity(1 + random.nextInt(Math.max(1, product.getUnitsPerBin())));
             stockLevelRepository.save(primaryStock);
 
             if (i % 3 == 0) {
-                StorageLocation secondary = locations.get((i + 7) % locations.size());
-                if (!secondary.getId().equals(primary.getId())) {
+                StorageLocation secondary = nextFreeLocation(locations, occupiedLocationIds, locationCursor);
+                if (secondary != null) {
+                    locationCursor = (locations.indexOf(secondary) + 1) % locations.size();
+                    occupiedLocationIds.add(secondary.getId());
                     StockLevel secondaryStock = new StockLevel();
                     secondaryStock.setProduct(product);
                     secondaryStock.setLocation(secondary);
-                    secondaryStock.setQuantity(20 + random.nextInt(40));
+                    secondaryStock.setQuantity(1 + random.nextInt(Math.max(1, product.getUnitsPerBin())));
                     stockLevelRepository.save(secondaryStock);
                 }
             }
@@ -503,6 +549,42 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
                 stockLevelRepository.count(),
                 modeHolder.get()
         );
+    }
+
+    private static StorageLocation nextFreeLocation(
+            List<StorageLocation> locations,
+            Set<Long> occupiedLocationIds,
+            int startIndex
+    ) {
+        if (locations.isEmpty()) {
+            return null;
+        }
+        for (int offset = 0; offset < locations.size(); offset++) {
+            StorageLocation candidate = locations.get((startIndex + offset) % locations.size());
+            if (!occupiedLocationIds.contains(candidate.getId())) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private void clampStockToBinCapacity() {
+        int fixed = 0;
+        for (StockLevel level : stockLevelRepository.findAll()) {
+            Product product = level.getProduct();
+            if (product == null) {
+                continue;
+            }
+            int cap = Math.max(1, product.getUnitsPerBin());
+            if (level.getQuantity() > cap) {
+                level.setQuantity(cap);
+                stockLevelRepository.save(level);
+                fixed++;
+            }
+        }
+        if (fixed > 0) {
+            log.info("Clamped {} stock rows to units_per_bin on {}", fixed, modeHolder.get());
+        }
     }
 
     private void seedOutboundOrdersIfEmpty() {
@@ -531,6 +613,6 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
         log.info("Seeded {} inbound receipts into {}", created, modeHolder.get());
     }
 
-    private record ProductSeed(String sku, String name) {
+    private record ProductSeed(String sku, String name, int unitsPerBin) {
     }
 }

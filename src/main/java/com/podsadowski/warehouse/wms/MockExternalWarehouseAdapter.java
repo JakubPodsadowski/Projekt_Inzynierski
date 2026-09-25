@@ -213,7 +213,11 @@ public class MockExternalWarehouseAdapter implements ExternalWarehousePort {
             int onHand = stockLevelRepository.findByProductId(product.getId()).stream()
                     .mapToInt(StockLevel::getQuantity)
                     .sum();
-            int qty = onHand < 40 ? 20 + random.nextInt(40) : 5 + random.nextInt(15);
+            int bin = Math.max(1, product.getUnitsPerBin());
+            // Prefer a few bins' worth so putaway spillover is exercised without flooding cartons.
+            int qty = onHand < bin * 3
+                    ? bin + random.nextInt(bin * 2 + 1)
+                    : 1 + random.nextInt(bin);
             lines.add(new ExternalInboundMessage.ExternalLine(product.getSku(), qty));
         }
         return lines;
