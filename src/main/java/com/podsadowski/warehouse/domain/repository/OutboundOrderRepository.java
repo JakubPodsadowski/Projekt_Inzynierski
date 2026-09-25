@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +18,22 @@ public interface OutboundOrderRepository extends JpaRepository<OutboundOrder, Lo
     Optional<OutboundOrder> findByAssignedEmployeeIdAndStatus(Long employeeId, OutboundOrderStatus status);
 
     long countByStatus(OutboundOrderStatus status);
+
+    @Query("""
+            SELECT COALESCE(SUM(l.quantityOrdered - l.quantityPicked), 0)
+            FROM OutboundOrderLine l
+            JOIN l.order o
+            WHERE o.status IN :statuses
+            """)
+    long sumRemainingToPick(@Param("statuses") Collection<OutboundOrderStatus> statuses);
+
+    @Query("""
+            SELECT COALESCE(SUM(l.quantityPicked - l.quantityPacked), 0)
+            FROM OutboundOrderLine l
+            JOIN l.order o
+            WHERE o.status IN :statuses
+            """)
+    long sumRemainingToPack(@Param("statuses") Collection<OutboundOrderStatus> statuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

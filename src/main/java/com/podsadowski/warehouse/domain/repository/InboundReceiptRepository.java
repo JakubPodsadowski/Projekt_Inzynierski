@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +18,14 @@ public interface InboundReceiptRepository extends JpaRepository<InboundReceipt, 
     Optional<InboundReceipt> findByAssignedEmployeeIdAndStatus(Long employeeId, InboundReceiptStatus status);
 
     long countByStatus(InboundReceiptStatus status);
+
+    @Query("""
+            SELECT COALESCE(SUM(l.quantityExpected - l.quantityPutAway), 0)
+            FROM InboundReceiptLine l
+            JOIN l.receipt r
+            WHERE r.status IN :statuses
+            """)
+    long sumRemainingToPutAway(@Param("statuses") Collection<InboundReceiptStatus> statuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
