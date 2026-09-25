@@ -46,3 +46,61 @@
 .simulation-control-bar .custom-range {
     width: 160px;
 }
+
+.activity-timeline {
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+.activity-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-icon {
+    flex: 0 0 2rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: #e9ecef;
+    color: #495057;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+}
+
+.activity-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.activity-meta {
+    font-size: 0.8rem;
+    margin-bottom: 0.15rem;
+}
+
+.activity-text {
+    font-size: 0.9rem;
+}
+
+.notification-list {
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+.notification-item.notification-unread {
+    background: #f8f9fa;
+    border-left: 3px solid #007bff;
+}
+
+.notification-msg {
+    font-size: 0.9rem;
+    margin-bottom: 0.15rem;
+}
