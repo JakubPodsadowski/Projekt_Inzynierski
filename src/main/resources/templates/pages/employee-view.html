@@ -1,20 +1,135 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/main :: layout(~{::section})}">
 <head>
     <title>Employee</title>
 </head>
 <body>
 <section>
-    <div class="card">
-        <div class="card-body">
-            <p class="text-muted mb-0">
-                Employee detail and notifications
-                <span th:text="'(ID ' + ${employeeId} + ')'">(ID)</span>
-                — coming in the next step.
-            </p>
+    <div class="mb-3">
+        <a th:href="@{/employees}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-1"></i> Back to employees
+        </a>
+        <span id="employee-loading" class="badge badge-secondary ml-2 d-none">Refreshing…</span>
+    </div>
+
+    <div id="employee-error" class="alert alert-danger d-none" role="alert"></div>
+
+    <div id="employee-header" class="row d-none">
+        <div class="col-md-8">
+            <div class="card card-outline card-primary">
+                <div class="card-body">
+                    <h3 class="mb-1" id="emp-name">—</h3>
+                    <p class="text-muted mb-3">
+                        ID <span id="emp-id">—</span>
+                        · Department <strong id="emp-dept">—</strong>
+                    </p>
+                    <div class="row text-sm">
+                        <div class="col-sm-4 mb-2">
+                            <span class="text-muted d-block">IPH</span>
+                            <strong id="emp-iph">—</strong>
+                        </div>
+                        <div class="col-sm-4 mb-2">
+                            <span class="text-muted d-block">Break tier</span>
+                            <strong id="emp-break-tier">—</strong>
+                            <span id="emp-on-break" class="badge badge-warning ml-1 d-none">On break</span>
+                        </div>
+                        <div class="col-sm-4 mb-2">
+                            <span class="text-muted d-block">Items remaining</span>
+                            <strong id="emp-items">—</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-outline card-info h-100">
+                <div class="card-header">
+                    <h3 class="card-title mb-0">Relocation</h3>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        Status
+                        <span id="emp-reloc-status" class="badge badge-secondary">NONE</span>
+                    </p>
+                    <p class="mb-2 text-sm">
+                        Target: <strong id="emp-reloc-target">—</strong>
+                    </p>
+                    <p class="mb-2 text-sm">
+                        Until: <span id="emp-reloc-until">—</span>
+                    </p>
+                    <p class="mb-0 text-sm text-muted">
+                        Relocations today: <span id="emp-reloc-count">0</span>
+                        · Last: <span id="emp-reloc-last">—</span>
+                    </p>
+                </div>
+            </div>
         </div>
     </div>
+
+    <div class="row mt-3">
+        <div class="col-lg-5 mb-3">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title mb-0">Activity timeline</h3>
+                    <span id="activity-count" class="badge badge-light">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <ul id="activity-timeline" class="activity-timeline list-unstyled mb-0">
+                        <li class="text-muted text-center py-4">Loading…</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 mb-3">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title mb-0">Relocation history</h3>
+                    <span id="relocation-count" class="badge badge-light">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead>
+                            <tr>
+                                <th>When</th>
+                                <th>From → To</th>
+                                <th>Status</th>
+                            </tr>
+                            </thead>
+                            <tbody id="relocation-body">
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-3">Loading…</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 mb-3">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title mb-0">Notifications</h3>
+                    <button type="button" id="mark-all-read" class="btn btn-xs btn-outline-secondary" disabled>
+                        Mark all read
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <ul id="notification-list" class="list-group list-group-flush notification-list">
+                        <li class="list-group-item text-muted text-center">Loading…</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:inline="javascript">
+        window.EMPLOYEE_ID = /*[[${employeeId}]]*/ null;
+    </script>
+    <script th:src="@{/js/employee-view.js}"></script>
 </section>
 </body>
 </html>
