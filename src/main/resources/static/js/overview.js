@@ -77,6 +77,12 @@
         setText('kpi-in-transit', String(data.inTransitRelocations));
         setText('kpi-on-break', String(data.employeesOnBreak));
         setText('kpi-total-employees', String(data.totalEmployees));
+        setText('kpi-ready-to-pick', String(data.readyToPick ?? 0));
+        setText('kpi-picking', String(data.picking ?? 0));
+        setText('kpi-ready-to-pack', String(data.readyToPack ?? 0));
+        setText('kpi-packing', String(data.packing ?? 0));
+        setText('kpi-ready-putaway', String(data.readyToPutAway ?? 0));
+        setText('kpi-putaway-progress', String(data.putawayInProgress ?? 0));
         setText('overview-timestamp', formatTimestamp(data.timestamp));
         renderDepartments(data.departments);
     }

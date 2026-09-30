@@ -10,6 +10,12 @@ public record OverviewResponse(
         long pendingRelocations,
         long inTransitRelocations,
         long employeesOnBreak,
-        long totalEmployees
+        long totalEmployees,
+        long readyToPick,
+        long picking,
+        long readyToPack,
+        long packing,
+        long readyToPutAway,
+        long putawayInProgress
 ) {
 }

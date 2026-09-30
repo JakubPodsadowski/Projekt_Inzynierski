@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/main :: layout(~{::section})}">
 <head>
     <title>Overview</title>
@@ -58,6 +58,64 @@
                     <p>On break</p>
                 </div>
                 <div class="icon"><i class="fas fa-coffee"></i></div>
+            </div>
+        </div>
+    </div>
+
+    <h5 class="mb-2 text-muted">Outbound / inbound queues</h5>
+    <div class="row">
+        <div class="col-lg-2 col-6">
+            <div class="small-box bg-teal">
+                <div class="inner">
+                    <h3 id="kpi-ready-to-pick">—</h3>
+                    <p>Ready to pick</p>
+                </div>
+                <div class="icon"><i class="fas fa-shopping-basket"></i></div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-6">
+            <div class="small-box bg-olive">
+                <div class="inner">
+                    <h3 id="kpi-picking">—</h3>
+                    <p>Picking</p>
+                </div>
+                <div class="icon"><i class="fas fa-box"></i></div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-6">
+            <div class="small-box bg-orange">
+                <div class="inner">
+                    <h3 id="kpi-ready-to-pack">—</h3>
+                    <p>Ready to pack</p>
+                </div>
+                <div class="icon"><i class="fas fa-hourglass-half"></i></div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-6">
+            <div class="small-box bg-purple">
+                <div class="inner">
+                    <h3 id="kpi-packing">—</h3>
+                    <p>Packing</p>
+                </div>
+                <div class="icon"><i class="fas fa-box-open"></i></div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-6">
+            <div class="small-box bg-navy">
+                <div class="inner">
+                    <h3 id="kpi-ready-putaway">—</h3>
+                    <p>Ready putaway</p>
+                </div>
+                <div class="icon"><i class="fas fa-truck-loading"></i></div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-6">
+            <div class="small-box bg-maroon">
+                <div class="inner">
+                    <h3 id="kpi-putaway-progress">—</h3>
+                    <p>Putaway active</p>
+                </div>
+                <div class="icon"><i class="fas fa-dolly"></i></div>
             </div>
         </div>
     </div>

@@ -85,13 +85,21 @@ class WorkforceApiControllerTest {
                 3,
                 1,
                 8,
-                40
+                40,
+                5,
+                2,
+                7,
+                1,
+                3,
+                1
         ));
 
         mockMvc.perform(get("/api/v1/overview"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.deficitImbalance").value(120.5))
-                .andExpect(jsonPath("$.totalEmployees").value(40));
+                .andExpect(jsonPath("$.totalEmployees").value(40))
+                .andExpect(jsonPath("$.readyToPack").value(7))
+                .andExpect(jsonPath("$.readyToPutAway").value(3));
     }
 
     @Test

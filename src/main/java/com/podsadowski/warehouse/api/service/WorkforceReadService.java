@@ -12,9 +12,13 @@ import com.podsadowski.warehouse.api.mapper.WorkforceMapper;
 import com.podsadowski.warehouse.domain.entity.Department;
 import com.podsadowski.warehouse.domain.entity.DepartmentName;
 import com.podsadowski.warehouse.domain.entity.Employee;
+import com.podsadowski.warehouse.domain.entity.InboundReceiptStatus;
+import com.podsadowski.warehouse.domain.entity.OutboundOrderStatus;
 import com.podsadowski.warehouse.domain.entity.WorkActivity;
 import com.podsadowski.warehouse.domain.repository.DepartmentRepository;
 import com.podsadowski.warehouse.domain.repository.EmployeeRepository;
+import com.podsadowski.warehouse.domain.repository.InboundReceiptRepository;
+import com.podsadowski.warehouse.domain.repository.OutboundOrderRepository;
 import com.podsadowski.warehouse.domain.repository.RelocationLogRepository;
 import com.podsadowski.warehouse.domain.repository.WorkActivityRepository;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +42,8 @@ public class WorkforceReadService {
     private final EmployeeRepository employeeRepository;
     private final RelocationLogRepository relocationLogRepository;
     private final WorkActivityRepository workActivityRepository;
+    private final OutboundOrderRepository outboundOrderRepository;
+    private final InboundReceiptRepository inboundReceiptRepository;
     private final WorkforceMapper workforceMapper;
     private final Clock clock;
 
@@ -138,7 +144,13 @@ public class WorkforceReadService {
                 pendingRelocations,
                 inTransitRelocations,
                 employeesOnBreak,
-                employees.size()
+                employees.size(),
+                outboundOrderRepository.countByStatus(OutboundOrderStatus.READY_TO_PICK),
+                outboundOrderRepository.countByStatus(OutboundOrderStatus.PICKING),
+                outboundOrderRepository.countByStatus(OutboundOrderStatus.READY_TO_PACK),
+                outboundOrderRepository.countByStatus(OutboundOrderStatus.PACKING),
+                inboundReceiptRepository.countByStatus(InboundReceiptStatus.READY_TO_PUTAWAY),
+                inboundReceiptRepository.countByStatus(InboundReceiptStatus.IN_PROGRESS)
         );
     }
 
