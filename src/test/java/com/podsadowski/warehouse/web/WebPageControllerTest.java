@@ -49,6 +49,14 @@ class WebPageControllerTest {
     }
 
     @Test
+    void inventory_returnsPage() throws Exception {
+        mockMvc.perform(get("/inventory"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("pages/inventory"))
+                .andExpect(content().string(containsString("inventory-page")));
+    }
+
+    @Test
     void employeeView_returnsPage() throws Exception {
         mockMvc.perform(get("/employees/5/view"))
                 .andExpect(status().isOk())

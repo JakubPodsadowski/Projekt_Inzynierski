@@ -36,6 +36,13 @@ public class WebPageController {
         return "pages/relocations";
     }
 
+    @GetMapping("/inventory")
+    public String inventory(Model model) {
+        model.addAttribute("pageTitle", "Inventory");
+        model.addAttribute("activeMenu", "inventory");
+        return "pages/inventory";
+    }
+
     @GetMapping("/employees/{id}/view")
     public String employeeView(@PathVariable Long id, Model model) {
         model.addAttribute("pageTitle", "Employee");

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/main :: layout(~{::section})}">
+<head>
+    <title>Inventory</title>
+</head>
+<body>
+<section id="inventory-page">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <p class="text-muted mb-0">
+            Storage bins vs capacity (<code>unitsPerBin</code>). Empty bins show free putaway space.
+        </p>
+        <span id="inventory-loading" class="badge badge-secondary d-none">Refreshing…</span>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <div class="form-row align-items-end">
+                <div class="form-group col-md-3 mb-2 mb-md-0">
+                    <label for="inventory-sku" class="mb-0 small">SKU / name</label>
+                    <input type="text" class="form-control form-control-sm" id="inventory-sku"
+                           placeholder="e.g. SKU-1001"/>
+                </div>
+                <div class="form-group col-md-3 mb-2 mb-md-0">
+                    <label for="inventory-code" class="mb-0 small">Location code</label>
+                    <input type="text" class="form-control form-control-sm" id="inventory-code"
+                           placeholder="e.g. A-01"/>
+                </div>
+                <div class="form-group col-md-3 mb-2 mb-md-0">
+                    <div class="custom-control custom-checkbox mt-3">
+                        <input type="checkbox" class="custom-control-input" id="inventory-occupied-only">
+                        <label class="custom-control-label" for="inventory-occupied-only">Occupied only</label>
+                    </div>
+                </div>
+                <div class="form-group col-md-3 mb-0 text-md-right">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="inventory-refresh-btn">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-3 col-6">
+            <div class="info-box mb-0">
+                <span class="info-box-icon bg-info"><i class="fas fa-map-marker-alt"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text">Bins shown</span>
+                    <span class="info-box-number" id="inv-stat-rows">—</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="info-box mb-0">
+                <span class="info-box-icon bg-success"><i class="fas fa-box"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text">Occupied</span>
+                    <span class="info-box-number" id="inv-stat-occupied">—</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="info-box mb-0">
+                <span class="info-box-icon bg-secondary"><i class="fas fa-door-open"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text">Empty</span>
+                    <span class="info-box-number" id="inv-stat-empty">—</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="info-box mb-0">
+                <span class="info-box-icon bg-warning"><i class="fas fa-battery-full"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text">Full bins</span>
+                    <span class="info-box-number" id="inv-stat-full">—</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title mb-0">Bins</h3>
+        </div>
+        <div class="card-body table-responsive p-0">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                <tr>
+                    <th>Location</th>
+                    <th>SKU</th>
+                    <th>Product</th>
+                    <th class="text-right">Qty</th>
+                    <th class="text-right">Cap</th>
+                    <th style="min-width: 140px;">Fill</th>
+                </tr>
+                </thead>
+                <tbody id="inventory-body">
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">Loading…</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script th:src="@{/js/inventory.js}"></script>
+</section>
+</body>
+</html>
