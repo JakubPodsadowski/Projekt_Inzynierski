@@ -48,13 +48,13 @@ public class EmployeePerformanceService {
         if (hasObservedIph(employee.getId(), department)) {
             return getIph(employee.getId(), department, now);
         }
+        if (employee.getCurrentDepartment() != null
+                && employee.getCurrentDepartment().getName() == department) {
+            return getDefaultIph(department);
+        }
         return predictIphAtDepartment(employee, department, now);
     }
 
-    /**
-     * Predicts IPH when an employee works in a department without observed history there.
-     * Uses personal factor = currentIph / norm(currentDept), scaled to target department norm.
-     */
     public double predictIphAtDepartment(Employee employee, DepartmentName targetDepartment, LocalDateTime now) {
         if (hasObservedIph(employee.getId(), targetDepartment)) {
             return getIph(employee.getId(), targetDepartment, now);

@@ -10,9 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/**
- * Demo scheduler: pulls inbound shipments from the external WMS port into putaway queue.
- */
+/** Demo inbound → putaway queue. */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -21,6 +19,7 @@ public class InboundReceiptGenerator {
     private final ExternalWarehouseIngestionService ingestionService;
     private final MockExternalWarehouseAdapter mockExternalWarehouseAdapter;
     private final InboundPutawayService inboundPutawayService;
+    private final LocationCapacityService locationCapacityService;
     private final DataSourceModeHolder modeHolder;
     private final SimulationRuntimeState simulationRuntimeState;
     private final WarehouseProperties warehouseProperties;
@@ -28,6 +27,10 @@ public class InboundReceiptGenerator {
     @Scheduled(fixedDelayString = "${warehouse.simulation.inbound-generate-interval-ms:6000}")
     public void generateTick() {
         if (!modeHolder.isDemo() || simulationRuntimeState.isPaused()) {
+            return;
+        }
+        if (!locationCapacityService.hasFreePutawaySpace()) {
+            log.debug("Inbound paused — no free putaway capacity");
             return;
         }
         int maxOpen = warehouseProperties.getSimulation().getMaxOpenPutawayReceipts();

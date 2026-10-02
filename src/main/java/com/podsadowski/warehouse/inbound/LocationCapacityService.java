@@ -16,7 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Bin capacity rules for putaway: mono-SKU locations sized by {@link Product#getUnitsPerBin()}.
+ * Bin capacity rules for putaway: mono-SKU locations.
  */
 @Service
 @RequiredArgsConstructor
@@ -48,10 +48,6 @@ public class LocationCapacityService {
         return capacity;
     }
 
-    /**
-     * Ordered putaway targets for one SKU: preferred (if free), then same-SKU bins with space
-     * (fullest first), then empty bins.
-     */
     public List<StorageLocation> findPutawayTargets(Product product, Long preferredLocationId) {
         List<StorageLocation> targets = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
@@ -98,6 +94,32 @@ public class LocationCapacityService {
             }
         }
         return Optional.empty();
+    }
+
+    public boolean hasFreePutawaySpace() {
+        return countEmptyLocations() > 0 || hasPartialBinSpace();
+    }
+
+    public long countEmptyLocations() {
+        long empty = 0;
+        for (StorageLocation location : storageLocationRepository.findAll()) {
+            if (isEmpty(location)) {
+                empty++;
+            }
+        }
+        return empty;
+    }
+
+    private boolean hasPartialBinSpace() {
+        for (StockLevel level : stockLevelRepository.findAll()) {
+            if (level.getQuantity() <= 0 || level.getProduct() == null || level.getLocation() == null) {
+                continue;
+            }
+            if (freeCapacity(level.getLocation(), level.getProduct()) > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isEmpty(StorageLocation location) {

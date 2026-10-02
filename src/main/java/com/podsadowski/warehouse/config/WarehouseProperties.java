@@ -52,6 +52,8 @@ public class WarehouseProperties {
 
     private Demand demand = new Demand();
 
+    private Packing packing = new Packing();
+
     private Kafka kafka = new Kafka();
 
 
@@ -128,9 +130,8 @@ public class WarehouseProperties {
 
             defaults.put(DepartmentName.PICKING, 85.0);
 
-            defaults.put(DepartmentName.PACKING, 55.0);
+            defaults.put(DepartmentName.PACKING, 220.0);
 
-            // Inbound putaway absorbs former PREP_UNPACKING capacity norms
             defaults.put(DepartmentName.PUTAWAY, 55.0);
 
             return defaults;
@@ -147,7 +148,7 @@ public class WarehouseProperties {
 
     public static class Relocation {
 
-        private int maxMovesPerTick = 5;
+        private int maxMovesPerTick = 2;
 
         private double balanceToleranceIph = 10.0;
 
@@ -162,6 +163,10 @@ public class WarehouseProperties {
         private int orderItemsMax = 15;
 
         private int topPerformerSampleSize = 3;
+
+        private int maxMovesIntoDepartmentPerTick = 1;
+
+        private boolean allowFallbackFromLeastDeficit = true;
 
     }
 
@@ -255,21 +260,27 @@ public class WarehouseProperties {
 
 
 
-    /**
-     * Maps pipeline backlog (items) to department {@code requiredIPH}
-     * so RelocationEngine can staff empty queues (e.g. PACKING).
-     */
     @Getter
 
     @Setter
 
     public static class Demand {
 
-        /** Simulated hours over which the backlog should be cleared. */
-        private double horizonHours = 1.0;
-
-        /** Floor when backlog &gt; 0 so a starved department always exceeds balance tolerance. */
         private double minRequiredIphWhenBacklog = 40.0;
+
+        private double minPutawayStaffWhenFreeCapacity = 2.0;
+
+    }
+
+
+
+    @Getter
+
+    @Setter
+
+    public static class Packing {
+
+        private int maxStations = 8;
 
     }
 

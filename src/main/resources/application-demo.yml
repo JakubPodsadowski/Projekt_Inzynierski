@@ -12,8 +12,8 @@ warehouse:
     throughput-random-max: 1.15
     order-generate-interval-ms: 4000
     max-open-pick-orders: 25
-    inbound-generate-interval-ms: 6000
-    max-open-putaway-receipts: 15
+    inbound-generate-interval-ms: 4000
+    max-open-putaway-receipts: 20
   breaks:
     first-shift:
       first-break-start: "09:00"
@@ -26,10 +26,24 @@ warehouse:
       second-break-start: "12:30"
       second-break-end: "13:00"
   relocation:
+    max-moves-per-tick: 2
+    max-moves-into-department-per-tick: 1
+    balance-tolerance-iph: 15.0
+    cooldown-minutes: 45
+    max-relocations-per-day: 4
+    travel-minutes: 5
     top-performer-sample-size: 3
+    allow-fallback-from-least-deficit: true
   demand:
-    horizon-hours: 1.0
     min-required-iph-when-backlog: 40.0
+    min-putaway-staff-when-free-capacity: 2.0
+  packing:
+    max-stations: 8
+  performance:
+    default-iph:
+      PICKING: 85
+      PACKING: 220
+      PUTAWAY: 55
   seeding:
     employee-count: 40
   kafka:

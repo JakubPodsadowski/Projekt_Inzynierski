@@ -66,7 +66,6 @@ public class MockExternalWarehouseAdapter implements ExternalWarehousePort {
         return inboundQueue.size();
     }
 
-    /** Enqueue up to {@code count} synthesized demand messages (demo / seed). */
     public int enqueueSyntheticDemand(int count) {
         int created = 0;
         for (int i = 0; i < count; i++) {
@@ -80,7 +79,6 @@ public class MockExternalWarehouseAdapter implements ExternalWarehousePort {
         return created;
     }
 
-    /** Enqueue up to {@code count} synthesized inbound shipments (demo / seed). */
     public int enqueueSyntheticInbound(int count) {
         int created = 0;
         for (int i = 0; i < count; i++) {
@@ -94,9 +92,6 @@ public class MockExternalWarehouseAdapter implements ExternalWarehousePort {
         return created;
     }
 
-    /**
-     * Chaos helper: enqueue demand messages totaling roughly {@code targetItems} units.
-     */
     public SurgeResult enqueueDemandSurge(int targetItems) {
         int remaining = targetItems;
         int totalItems = 0;
@@ -214,10 +209,9 @@ public class MockExternalWarehouseAdapter implements ExternalWarehousePort {
                     .mapToInt(StockLevel::getQuantity)
                     .sum();
             int bin = Math.max(1, product.getUnitsPerBin());
-            // Prefer a few bins' worth so putaway spillover is exercised without flooding cartons.
-            int qty = onHand < bin * 3
-                    ? bin + random.nextInt(bin * 2 + 1)
-                    : 1 + random.nextInt(bin);
+            int qty = onHand < bin * 4
+                    ? bin * (1 + random.nextInt(3))
+                    : bin + random.nextInt(bin + 1);
             lines.add(new ExternalInboundMessage.ExternalLine(product.getSku(), qty));
         }
         return lines;

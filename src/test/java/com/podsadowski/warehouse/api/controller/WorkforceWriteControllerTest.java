@@ -64,15 +64,15 @@ class WorkforceWriteControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "firstName": "Jan",
-                                  "lastName": "Kowalski",
+                                  "firstName": "John",
+                                  "lastName": "Smith",
                                   "departmentId": 1,
                                   "breakTier": "FIRST_SHIFT"
                                 }
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(5))
-                .andExpect(jsonPath("$.firstName").value("Jan"));
+                .andExpect(jsonPath("$.firstName").value("John"));
     }
 
     @Test
@@ -82,7 +82,7 @@ class WorkforceWriteControllerTest {
                         .content("""
                                 {
                                   "firstName": "",
-                                  "lastName": "Kowalski",
+                                  "lastName": "Smith",
                                   "departmentId": 1,
                                   "breakTier": "FIRST_SHIFT"
                                 }
@@ -100,7 +100,7 @@ class WorkforceWriteControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "firstName": "Jan"
+                                  "firstName": "John"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -219,8 +219,8 @@ class WorkforceWriteControllerTest {
     private EmployeeResponse sampleEmployee() {
         return new EmployeeResponse(
                 5L,
-                "Jan",
-                "Kowalski",
+                "John",
+                "Smith",
                 1L,
                 DepartmentName.PICKING,
                 82.3,

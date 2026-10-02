@@ -95,6 +95,7 @@ class RelocationEnginePackingDemandTest {
         when(departmentRepository.findAll()).thenReturn(List.of(picking, packing, putaway));
         when(employeeRepository.findByCurrentDepartment(eq(picking))).thenReturn(List.of(picker));
         when(employeeRepository.findByCurrentDepartment(eq(packing))).thenReturn(List.of());
+        when(employeeRepository.findAll()).thenReturn(List.of(picker));
         when(employeePerformanceService.getDefaultIph(DepartmentName.PACKING)).thenReturn(55.0);
         when(employeePerformanceService.predictIphAtDepartment(eq(picker), eq(DepartmentName.PACKING), any()))
                 .thenReturn(55.0);

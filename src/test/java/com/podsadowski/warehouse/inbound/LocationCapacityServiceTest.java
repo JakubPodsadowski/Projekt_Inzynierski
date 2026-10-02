@@ -99,6 +99,25 @@ class LocationCapacityServiceTest {
                 .isEqualTo("A-01-02");
     }
 
+    @Test
+    void hasFreePutawaySpace_trueWhenEmptyBinExists() {
+        when(storageLocationRepository.findAll()).thenReturn(List.of(locA, locB));
+        when(stockLevelRepository.findByLocationId(10L)).thenReturn(List.of(stock(shoes, locA, 6)));
+        when(stockLevelRepository.findByLocationId(11L)).thenReturn(List.of());
+
+        assertThat(service.hasFreePutawaySpace()).isTrue();
+        assertThat(service.countEmptyLocations()).isEqualTo(1);
+    }
+
+    @Test
+    void hasFreePutawaySpace_falseWhenAllBinsFull() {
+        when(storageLocationRepository.findAll()).thenReturn(List.of(locA));
+        when(stockLevelRepository.findByLocationId(10L)).thenReturn(List.of(stock(shoes, locA, 6)));
+        when(stockLevelRepository.findAll()).thenReturn(List.of(stock(shoes, locA, 6)));
+
+        assertThat(service.hasFreePutawaySpace()).isFalse();
+    }
+
     private static Product product(Long id, String sku, int unitsPerBin) {
         Product product = new Product();
         product.setId(id);

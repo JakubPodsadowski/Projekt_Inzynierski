@@ -106,28 +106,36 @@ public class OutboundOrderService {
         Optional<OutboundOrder> current = outboundOrderRepository
                 .findByAssignedEmployeeIdAndStatus(employeeId, OutboundOrderStatus.PICKING);
         if (current.isPresent()) {
-            syncEmployeeRemaining(employeeId, current.get().remainingToPick());
-            return current;
+            OutboundOrder order = current.get();
+            if (!hasPickableStock(order)) {
+                releaseStuckPick(order, employeeId);
+                // fall through and try another claimable order
+            } else {
+                syncEmployeeRemaining(employeeId, order.remainingToPick());
+                return current;
+            }
         }
 
         List<OutboundOrder> claimable = outboundOrderRepository.findClaimable(
-                OutboundOrderStatus.READY_TO_PICK, PageRequest.of(0, 1));
-        if (claimable.isEmpty()) {
-            syncEmployeeRemaining(employeeId, 0);
-            return Optional.empty();
+                OutboundOrderStatus.READY_TO_PICK, PageRequest.of(0, 25));
+        LocalDateTime now = LocalDateTime.now(clock);
+        for (OutboundOrder order : claimable) {
+            if (!hasPickableStock(order)) {
+                continue;
+            }
+            order.setStatus(OutboundOrderStatus.PICKING);
+            order.setAssignedEmployeeId(employeeId);
+            order.setPickingStartedAt(now);
+            order.setPriorityScore(computePriorityScore(order.isVip(), order.getDueAt(), order.getCreatedAt(), now));
+            outboundOrderRepository.save(order);
+            syncEmployeeRemaining(employeeId, order.remainingToPick());
+            workActivityService.record(WorkActivityDraft.pickStarted(employeeId, order.getId(), order.getOrderNumber()));
+            log.debug("Employee {} claimed pick order {}", employeeId, order.getOrderNumber());
+            return Optional.of(order);
         }
 
-        LocalDateTime now = LocalDateTime.now(clock);
-        OutboundOrder order = claimable.getFirst();
-        order.setStatus(OutboundOrderStatus.PICKING);
-        order.setAssignedEmployeeId(employeeId);
-        order.setPickingStartedAt(now);
-        order.setPriorityScore(computePriorityScore(order.isVip(), order.getDueAt(), order.getCreatedAt(), now));
-        outboundOrderRepository.save(order);
-        syncEmployeeRemaining(employeeId, order.remainingToPick());
-        workActivityService.record(WorkActivityDraft.pickStarted(employeeId, order.getId(), order.getOrderNumber()));
-        log.debug("Employee {} claimed pick order {}", employeeId, order.getOrderNumber());
-        return Optional.of(order);
+        syncEmployeeRemaining(employeeId, 0);
+        return Optional.empty();
     }
 
     @Transactional
@@ -186,6 +194,8 @@ public class OutboundOrderService {
             workActivityService.record(WorkActivityDraft.pickCompleted(
                     employeeId, order.getId(), order.getOrderNumber(), totalPicked));
             syncEmployeeRemaining(employeeId, 0);
+        } else if (processed == 0 && !hasPickableStock(order)) {
+            releaseStuckPick(order, employeeId);
         } else {
             outboundOrderRepository.save(order);
             syncEmployeeRemaining(employeeId, order.remainingToPick());
@@ -285,6 +295,27 @@ public class OutboundOrderService {
         order.setAssignedEmployeeId(null);
         outboundOrderRepository.save(order);
         log.debug("Order {} moved to pack queue", order.getOrderNumber());
+    }
+
+    private void releaseStuckPick(OutboundOrder order, Long employeeId) {
+        order.setStatus(OutboundOrderStatus.READY_TO_PICK);
+        order.setAssignedEmployeeId(null);
+        outboundOrderRepository.save(order);
+        syncEmployeeRemaining(employeeId, 0);
+        log.info("Released pick assignment for {} — no available stock for remaining lines",
+                order.getOrderNumber());
+    }
+
+    private boolean hasPickableStock(OutboundOrder order) {
+        for (OutboundOrderLine line : order.getLines()) {
+            if (line.remainingToPick() <= 0) {
+                continue;
+            }
+            if (availableStock(line.getProduct().getId()) > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void syncEmployeeRemaining(Long employeeId, int remaining) {

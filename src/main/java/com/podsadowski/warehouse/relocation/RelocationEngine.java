@@ -4,6 +4,7 @@ import com.podsadowski.warehouse.api.exception.InvalidRequestException;
 import com.podsadowski.warehouse.api.exception.ResourceNotFoundException;
 import com.podsadowski.warehouse.config.WarehouseProperties;
 import com.podsadowski.warehouse.domain.entity.Department;
+import com.podsadowski.warehouse.domain.entity.DepartmentName;
 import com.podsadowski.warehouse.domain.entity.Employee;
 import com.podsadowski.warehouse.domain.entity.RelocationLog;
 import com.podsadowski.warehouse.domain.entity.RelocationLogStatus;
@@ -20,14 +21,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
  * Plans workforce relocations from surplus to deficit departments.
  * Moves the weakest eligible performers based on how many top-performer equivalents
- * the deficit department needs. Only schedules moves; execution is handled by
- * {@link RelocationFulfillmentService}.
+ * the deficit department needs. Only schedules moves;
  */
 @Service
 @RequiredArgsConstructor
@@ -54,6 +56,7 @@ public class RelocationEngine {
             return 0;
         }
 
+        Map<Long, Integer> movesIntoDepartment = new HashMap<>();
         int scheduled = 0;
         while (scheduled < config.getMaxMovesPerTick()) {
             List<Department> currentDepartments = departmentRepository.findAll();
@@ -61,13 +64,16 @@ public class RelocationEngine {
                 break;
             }
 
-            Optional<RelocationCandidate> candidate = findBestRelocation(currentDepartments, now, config);
+            Optional<RelocationCandidate> candidate =
+                    findBestRelocation(currentDepartments, now, config, movesIntoDepartment);
             if (candidate.isEmpty()) {
                 logRelocationBlockers(currentDepartments, now, config);
                 break;
             }
 
-            scheduleRelocation(candidate.get());
+            RelocationCandidate move = candidate.get();
+            scheduleRelocation(move);
+            movesIntoDepartment.merge(move.recipient().getId(), 1, Integer::sum);
             scheduled++;
         }
 
@@ -128,31 +134,28 @@ public class RelocationEngine {
     private Optional<RelocationCandidate> findBestRelocation(
             List<Department> departments,
             LocalDateTime now,
-            WarehouseProperties.Relocation config
+            WarehouseProperties.Relocation config,
+            Map<Long, Integer> movesIntoDepartment
     ) {
         double tolerance = config.getBalanceToleranceIph();
+        int maxIntoDept = Math.max(1, config.getMaxMovesIntoDepartmentPerTick());
 
         List<Department> recipients = departments.stream()
                 .filter(department -> calculateDeficit(department) > tolerance)
+                .filter(department -> movesIntoDepartment.getOrDefault(department.getId(), 0) < maxIntoDept)
+                .filter(department -> !isPackingAtStationCap(department))
                 .sorted(Comparator.comparingDouble(this::calculateDeficit).reversed())
-                .toList();
-
-        List<Department> givers = departments.stream()
-                .filter(department -> calculateDeficit(department) < -tolerance)
-                .sorted(Comparator.comparingDouble(this::calculateDeficit))
                 .toList();
 
         for (Department recipient : recipients) {
             double recipientDeficit = calculateDeficit(recipient);
             double benchmarkIph = getTopPerformerBenchmark(recipient);
             double iphToFlipToSurplus = recipientDeficit + tolerance;
-            int peopleNeeded = calculatePeopleNeeded(iphToFlipToSurplus, benchmarkIph);
+            int peopleNeeded = Math.min(2, calculatePeopleNeeded(iphToFlipToSurplus, benchmarkIph));
+
+            List<Department> givers = findGivers(departments, recipient, tolerance, config);
 
             for (Department giver : givers) {
-                if (giver.getId().equals(recipient.getId())) {
-                    continue;
-                }
-
                 List<Employee> weakestMovable = findWeakestMovableEmployees(
                         giver, peopleNeeded, now, config);
 
@@ -184,6 +187,48 @@ public class RelocationEngine {
         return Optional.empty();
     }
 
+    private List<Department> findGivers(
+            List<Department> departments,
+            Department recipient,
+            double tolerance,
+            WarehouseProperties.Relocation config
+    ) {
+        double recipientDeficit = calculateDeficit(recipient);
+
+        List<Department> surplus = departments.stream()
+                .filter(department -> !department.getId().equals(recipient.getId()))
+                .filter(department -> calculateDeficit(department) < -tolerance)
+                .sorted(Comparator.comparingDouble(this::calculateDeficit))
+                .toList();
+        if (!surplus.isEmpty()) {
+            return surplus;
+        }
+
+        if (!config.isAllowFallbackFromLeastDeficit()) {
+            return List.of();
+        }
+
+        return departments.stream()
+                .filter(department -> !department.getId().equals(recipient.getId()))
+                .filter(department -> calculateDeficit(department) < recipientDeficit - tolerance)
+                .sorted(Comparator.comparingDouble(this::calculateDeficit))
+                .toList();
+    }
+
+    private boolean isPackingAtStationCap(Department department) {
+        if (department.getName() != DepartmentName.PACKING) {
+            return false;
+        }
+        int maxStations = Math.max(1, warehouseProperties.getPacking().getMaxStations());
+        long onFloor = employeeRepository.findByCurrentDepartment(department).size();
+        long inbound = employeeRepository.findAll().stream()
+                .filter(Employee::hasPendingRelocation)
+                .filter(employee -> employee.getTargetDepartment() != null
+                        && department.getId().equals(employee.getTargetDepartment().getId()))
+                .count();
+        return onFloor + inbound >= maxStations;
+    }
+
     private double getTopPerformerBenchmark(Department recipient) {
         int sampleSize = warehouseProperties.getRelocation().getTopPerformerSampleSize();
         List<Employee> topPerformers = employeeRepository.findByCurrentDepartment(recipient).stream()
@@ -210,9 +255,6 @@ public class RelocationEngine {
         return Math.max(1, (int) Math.ceil(iphGap / benchmarkIph));
     }
 
-    /**
-     * Returns eligible employees who are among the N weakest on their current (surplus) department.
-     */
     private List<Employee> findWeakestMovableEmployees(
             Department giver,
             int peopleNeeded,

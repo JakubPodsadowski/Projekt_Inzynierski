@@ -149,8 +149,8 @@ class WorkforceApiControllerTest {
     private EmployeeResponse sampleEmployee() {
         return new EmployeeResponse(
                 5L,
-                "Jan",
-                "Kowalski",
+                "John",
+                "Smith",
                 1L,
                 DepartmentName.PICKING,
                 82.3,

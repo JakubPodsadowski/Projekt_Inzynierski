@@ -18,7 +18,6 @@ import com.podsadowski.warehouse.inbound.InboundReceiptGenerator;
 import com.podsadowski.warehouse.order.OutboundOrderGenerator;
 import com.podsadowski.warehouse.order.OutboundOrderService;
 import com.podsadowski.warehouse.performance.EmployeePerformanceService;
-import com.podsadowski.warehouse.relocation.RelocationFulfillmentService;
 import jakarta.persistence.EntityManagerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.SessionFactory;
@@ -61,7 +60,6 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
     private final StorageLocationRepository storageLocationRepository;
     private final StockLevelRepository stockLevelRepository;
     private final EmployeePerformanceService employeePerformanceService;
-    private final RelocationFulfillmentService relocationFulfillmentService;
     private final WarehouseProperties warehouseProperties;
     private final OutboundOrderGenerator outboundOrderGenerator;
     private final OutboundOrderService outboundOrderService;
@@ -80,7 +78,6 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
             StorageLocationRepository storageLocationRepository,
             StockLevelRepository stockLevelRepository,
             EmployeePerformanceService employeePerformanceService,
-            RelocationFulfillmentService relocationFulfillmentService,
             WarehouseProperties warehouseProperties,
             OutboundOrderGenerator outboundOrderGenerator,
             OutboundOrderService outboundOrderService,
@@ -98,7 +95,6 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
         this.storageLocationRepository = storageLocationRepository;
         this.stockLevelRepository = stockLevelRepository;
         this.employeePerformanceService = employeePerformanceService;
-        this.relocationFulfillmentService = relocationFulfillmentService;
         this.warehouseProperties = warehouseProperties;
         this.outboundOrderGenerator = outboundOrderGenerator;
         this.outboundOrderService = outboundOrderService;
@@ -426,10 +422,9 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
         }
 
         Map<Long, Double> departmentIphTotals = new HashMap<>();
-        // Round-robin guarantees at least one employee per department.
         for (int i = 1; i <= seeding.getEmployeeCount(); i++) {
             Employee emp = new Employee();
-            emp.setFirstName("Pracownik");
+            emp.setFirstName("Employee");
             emp.setLastName(String.valueOf(i));
             emp.setOnBreak(false);
             emp.setBreakTier(i % 2 == 0 ? BreakTier.FIRST_SHIFT : BreakTier.SECOND_SHIFT);
@@ -439,7 +434,7 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
 
             double employeeIph = employeePerformanceService.getDefaultIph(assignedDept.getName());
             emp.setCurrentIph(employeeIph);
-            emp.setOrderItemsRemaining(relocationFulfillmentService.randomOrderSize());
+            emp.setOrderItemsRemaining(0);
 
             employeeRepository.save(emp);
             departmentIphTotals.merge(assignedDept.getId(), employeeIph, Double::sum);
@@ -471,18 +466,30 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
 
         log.info("Seeding product catalog into {}", modeHolder.get());
         List<ProductSeed> seeds = List.of(
-                new ProductSeed("SKU-1001", "Kabel USB-C 1m", 12),
-                new ProductSeed("SKU-1002", "Kabel HDMI 2m", 12),
-                new ProductSeed("SKU-1003", "Mysz bezprzewodowa", 6),
-                new ProductSeed("SKU-1004", "Klawiatura membranowa", 2),
-                new ProductSeed("SKU-1005", "Podkladka pod mysz", 12),
-                new ProductSeed("SKU-1006", "Hub USB 4-port", 6),
-                new ProductSeed("SKU-1007", "Zasilacz 65W", 1),
-                new ProductSeed("SKU-1008", "Sluchawki nauszne", 2),
-                new ProductSeed("SKU-1009", "Etui na laptopa 15\"", 1),
-                new ProductSeed("SKU-1010", "Pendrive 64GB", 24),
-                new ProductSeed("SKU-1011", "Karta SD 128GB", 24),
-                new ProductSeed("SKU-1012", "Adapter USB-C/HDMI", 6)
+                new ProductSeed("SKU-1001", "USB-C Cable 1m", 24),
+                new ProductSeed("SKU-1002", "HDMI Cable 2m", 18),
+                new ProductSeed("SKU-1003", "Wireless Mouse", 12),
+                new ProductSeed("SKU-1004", "Membrane Keyboard", 4),
+                new ProductSeed("SKU-1005", "Mouse Pad", 20),
+                new ProductSeed("SKU-1006", "USB Hub 4-Port", 10),
+                new ProductSeed("SKU-1007", "65W USB-C Charger", 8),
+                new ProductSeed("SKU-1008", "Over-Ear Headphones", 4),
+                new ProductSeed("SKU-1009", "15\" Laptop Sleeve", 3),
+                new ProductSeed("SKU-1010", "64GB USB Flash Drive", 48),
+                new ProductSeed("SKU-1011", "128GB SD Card", 60),
+                new ProductSeed("SKU-1012", "USB-C to HDMI Adapter", 16),
+                new ProductSeed("SKU-1013", "Ethernet Cable Cat6 3m", 20),
+                new ProductSeed("SKU-1014", "Wireless Earbuds", 12),
+                new ProductSeed("SKU-1015", "Phone Case Universal", 30),
+                new ProductSeed("SKU-1016", "Laptop Stand Aluminum", 3),
+                new ProductSeed("SKU-1017", "Webcam 1080p", 6),
+                new ProductSeed("SKU-1018", "Mechanical Keyboard", 3),
+                new ProductSeed("SKU-1019", "DisplayPort Cable 2m", 18),
+                new ProductSeed("SKU-1020", "Portable SSD 1TB", 8),
+                new ProductSeed("SKU-1021", "USB-C Docking Station", 2),
+                new ProductSeed("SKU-1022", "24\" LED Monitor", 1),
+                new ProductSeed("SKU-1023", "Surge Protector 6-Outlet", 6),
+                new ProductSeed("SKU-1024", "Wireless Presenter", 16)
         );
 
         List<Product> products = new ArrayList<>();
@@ -495,10 +502,10 @@ public class DualDatabaseBootstrap implements ApplicationRunner {
         }
 
         List<StorageLocation> locations = new ArrayList<>();
-        String[] aisles = {"A", "B", "C", "D"};
+        String[] aisles = {"A", "B", "C", "D", "E", "F"};
         for (String aisle : aisles) {
-            for (int rack = 1; rack <= 6; rack++) {
-                for (int bin = 1; bin <= 4; bin++) {
+            for (int rack = 1; rack <= 8; rack++) {
+                for (int bin = 1; bin <= 5; bin++) {
                     StorageLocation location = new StorageLocation();
                     location.setAisle(aisle);
                     location.setRack(String.format("%02d", rack));
